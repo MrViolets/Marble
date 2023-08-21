@@ -482,7 +482,12 @@ function faviconURL (u) {
 function isExcluded (url) {
   const excludedUrls = [
     'chrome://',
-    'chrome-extension://'
+    'chrome-extension://',
+    'edge://',
+    'extension://',
+    'brave://',
+    'opera://',
+    'vivaldi://'
   ]
 
   return excludedUrls.some(excluded => url.startsWith(excluded))
