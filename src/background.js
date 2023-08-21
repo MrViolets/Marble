@@ -2,9 +2,6 @@
 
 /* global chrome, createImageBitmap, OffscreenCanvas */
 
-// Todo
-// Work on gettng site name better
-
 import * as menu from './modules/menu.js'
 import * as storage from './modules/storage.js'
 import * as tabs from './modules/tabs.js'
