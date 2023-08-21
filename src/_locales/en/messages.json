@@ -1,0 +1,29 @@
+{
+  "EXT_NAME": {
+    "message": "Tably - Automatic Tab Grouping"
+  },
+  "EXT_NAME_SHORT": {
+    "message": "Tably"
+  },
+  "EXT_DESCRIPTION": {
+    "message": "Tably keeps your tabs organized by automatically grouping them by domain."
+  },
+  "MENU_PREFERENCES": {
+    "message": "Preferences"
+  },
+  "MENU_AUTO_GROUP": {
+    "message": "Enable Tably"
+  },
+  "MENU_AUTO_CLOSE": {
+    "message": "Close Single Tab Groups"
+  },
+  "MENU_AUTO_COLLAPSE": {
+    "message": "Collapse Inactive Groups"
+  },
+  "MENU_RATE": {
+    "message": "Rate Tably"
+  },
+  "MENU_DONATE": {
+    "message": "Buy Me a Coffee"
+  }
+}
