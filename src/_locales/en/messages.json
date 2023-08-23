@@ -15,10 +15,10 @@
     "message": "Enable Tably"
   },
   "MENU_AUTO_CLOSE": {
-    "message": "Close Single Tab Groups"
+    "message": "Allow Single-Tab Groups"
   },
   "MENU_AUTO_COLLAPSE": {
-    "message": "Collapse Inactive Groups"
+    "message": "Collapse Groups When Not in Use"
   },
   "MENU_RATE": {
     "message": "Rate Tably"
