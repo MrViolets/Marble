@@ -203,6 +203,11 @@ async function onMenuClicked (info, tab) {
       console.error(error)
     }
   }
+
+  // Specific actions to be taken for preferences
+  if (menuItemId === 'auto_close_groups') {
+    await groupAllTabsByHostname()
+  }
 }
 
 async function openTab (type) {
@@ -579,6 +584,10 @@ async function onTabActivated (info) {
 
   if (userPreferences.auto_collapse_groups.value === false) return
 
+  await collapseUnusedGroups(info.tabId)
+}
+
+async function collapseUnusedGroups (tabId) {
   const allTabs = await tabs.getInCurrentWindow().catch(error => {
     console.error(error)
     return null
@@ -586,7 +595,7 @@ async function onTabActivated (info) {
 
   if (!allTabs) return
 
-  const tabActivated = allTabs.find(tab => tab.id === info.tabId)
+  const tabActivated = allTabs.find(tab => tab.id === tabId)
 
   if (!tabActivated) return
 
