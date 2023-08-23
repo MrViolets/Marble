@@ -5,7 +5,7 @@
 export const preferenceDefaults = {
   auto_close_groups: {
     title: chrome.i18n.getMessage('MENU_AUTO_CLOSE'),
-    value: true,
+    value: false,
     type: 'checkbox'
   },
   auto_collapse_groups: {

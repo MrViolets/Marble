@@ -260,19 +260,19 @@ async function addTabToGroup (tab) {
 
   if (!allTabs) return
 
+  const userPreferences = await storage.load('preferences', storage.preferenceDefaults).catch(error => {
+    console.error(error)
+    return storage.preferenceDefaults
+  })
+
   if (targetTab.groupId !== chrome.tabGroups.TAB_GROUP_ID_NONE) {
     const tabsInGroup = allTabs.filter(t => t.groupId === targetTab.groupId && t.id !== targetTab.id)
     const groupHasSameHostname = tabsInGroup.some(t => getHostName(t.url || t.pendingUrl || '') === targetTabHostName)
 
     if (!groupHasSameHostname) {
-      const userPreferences = await storage.load('preferences', storage.preferenceDefaults).catch(error => {
-        console.error(error)
-        return storage.preferenceDefaults
-      })
-
       try {
         // If 1 tab left in group then ungroup it
-        if (userPreferences.auto_close_groups.value === true && tabsInGroup.length === 1) {
+        if (userPreferences.auto_close_groups.value === false && tabsInGroup.length === 1) {
           for (const t of tabsInGroup) {
             await tabs.ungroup(t.id)
           }
@@ -300,7 +300,7 @@ async function addTabToGroup (tab) {
 
   const tabsToGroup = tabsWithThisHostname.map(tab => tab.id)
 
-  if (tabsToGroup.length === 1) return
+  if (tabsToGroup.length === 1 && userPreferences.auto_close_groups.value === false) return
 
   if (typeof groupId !== 'number') {
     groupId = await tabs.group(tabsToGroup).catch(error => {
@@ -506,7 +506,7 @@ async function onTabRemoved () {
     return storage.preferenceDefaults
   })
 
-  if (userPreferences.auto_close_groups.value === false) return
+  if (userPreferences.auto_close_groups.value === true) return
 
   const allTabs = await tabs.getInCurrentWindow().catch(error => {
     console.error(error)
