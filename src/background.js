@@ -276,7 +276,6 @@ async function addTabToGroup (tab) {
 
     if (!groupHasSameHostname) {
       try {
-        // If 1 tab left in group then ungroup it
         if (userPreferences.auto_close_groups.value === false && tabsInGroup.length === 1) {
           for (const t of tabsInGroup) {
             await tabs.ungroup(t.id)
@@ -289,6 +288,8 @@ async function addTabToGroup (tab) {
       } catch (error) {
         console.error(error)
       }
+    } else {
+      return
     }
   }
 
@@ -355,7 +356,22 @@ async function groupAllTabsByHostname () {
   for (const hostname of hostnames) {
     const tabsWithThisHostname = allTabs.filter(tab => getHostName(tab.url || tab.pendingUrl || '') === hostname)
 
-    if (!tabsWithThisHostname || tabsWithThisHostname.length <= 1) continue
+    if (!tabsWithThisHostname) continue
+
+    const userPreferences = await storage.load('preferences', storage.preferenceDefaults).catch(error => {
+      console.error(error)
+      return storage.preferenceDefaults
+    })
+
+    if (userPreferences.auto_close_groups.value === false && tabsWithThisHostname.length === 1) {
+      console.log('ungroup', hostname, tabsWithThisHostname[0])
+
+      if (tabsWithThisHostname[0].groupId !== chrome.tabGroups.TAB_GROUP_ID_NONE) {
+        await tabs.ungroup(tabsWithThisHostname[0].id)
+      }
+
+      continue
+    }
 
     const tabsToGroup = tabsWithThisHostname.map(tab => tab.id)
 
