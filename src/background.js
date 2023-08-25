@@ -29,11 +29,7 @@ async function init () {
 }
 
 async function setupContextMenu () {
-  const userPreferences = await storage.load('preferences', storage.preferenceDefaults).catch(error => {
-    console.error(error)
-    return storage.preferenceDefaults
-  })
-  const menuItemsFromPreferences = buildMenuStructureFromPreferences(userPreferences)
+  const menuItemsFromPreferences = buildMenuStructureFromPreferences(storage.preferenceDefaults)
 
   const menuItems = [
     {
@@ -146,10 +142,20 @@ async function loadPreferences () {
     console.error(error)
   }
 
-  const userPreferences = await storage.load('preferences', storage.preferenceDefaults).catch(error => {
+  let userPreferences = await storage.load('preferences', storage.preferenceDefaults).catch(error => {
     console.error(error)
     return storage.preferenceDefaults
   })
+
+  // Prune any changed settings
+  userPreferences = Object.fromEntries(
+    Object.entries(userPreferences).filter(
+      ([key]) => key in storage.preferenceDefaults
+    )
+  )
+
+  // Save pruned preferences back to storage
+  await storage.save('preferences', userPreferences)
 
   try {
     for (const [preferenceName, preferenceObj] of Object.entries(userPreferences)) {
@@ -165,8 +171,9 @@ async function loadPreferences () {
 }
 
 async function onTabUpdated (tabId, changes, tab) {
-  if (!changes.url || !tabId) return
-  await addTabToGroup(tab)
+  if (changes.url && tabId) {
+    await addTabToGroup(tabId)
+  }
 }
 
 async function groupAllTabsByHostname () {
@@ -176,17 +183,12 @@ async function groupAllTabsByHostname () {
 
   const hostnames = findAllHostnamesInTabs(allTabs)
 
-  const userPreferences = await storage.load('preferences', storage.preferenceDefaults).catch(error => {
-    console.error(error)
-    return storage.preferenceDefaults
-  })
-
   for (const hostname of hostnames) {
     const tabsWithThisHostname = allTabsWithSameHostname(allTabs, hostname)
 
     if (!tabsWithThisHostname) continue
 
-    if (userPreferences.auto_close_groups.value === false && tabsWithThisHostname.length === 1) {
+    if (tabsWithThisHostname.length === 1) {
       if (tabsWithThisHostname[0].groupId !== chrome.tabGroups.TAB_GROUP_ID_NONE) {
         await tabs.ungroup(tabsWithThisHostname[0].id)
       }
@@ -208,18 +210,10 @@ async function groupAllTabsByHostname () {
 
       const siteName = getSiteName(tabsWithThisHostname[0].pendingUrl || tabsWithThisHostname[0].url)
       const siteFaviconUrl = faviconURL(tabsWithThisHostname[0].pendingUrl || tabsWithThisHostname[0].url)
-      let groupColor = 'grey'
-
-      if (siteFaviconUrl) {
-        try {
-          groupColor = await getFaviconColor(siteFaviconUrl)
-        } catch (error) {
-          console.error(error)
-        }
-      }
+      const groupColor = await getFaviconColor(siteFaviconUrl)
 
       try {
-        await tabGroups.update(groupId, siteName, groupColor)
+        await tabGroups.update(groupId, { title: siteName, color: groupColor })
       } catch (error) {
         console.error(error)
       }
@@ -271,11 +265,6 @@ async function onMenuClicked (info, tab) {
       console.error(error)
     }
   }
-
-  // Specific actions to be taken for preferences
-  if (menuItemId === 'auto_close_groups') {
-    await groupAllTabsByHostname()
-  }
 }
 
 async function openTab (type) {
@@ -296,13 +285,6 @@ async function openTab (type) {
 
 async function onTabRemoved () {
   if (!await extensionIsEnabled()) return
-
-  const userPreferences = await storage.load('preferences', storage.preferenceDefaults).catch(error => {
-    console.error(error)
-    return storage.preferenceDefaults
-  })
-
-  if (userPreferences.auto_close_groups.value === true) return
 
   const allTabs = await getAllValidTabs()
 
@@ -337,72 +319,67 @@ async function onTabActivated (info) {
   await collapseUnusedGroups(info.tabId)
 }
 
-async function addTabToGroup(tab) {
-  if (!await extensionIsEnabled()) return;
+async function addTabToGroup (tabId) {
+  if (!await extensionIsEnabled()) return
 
-  const targetTab = await tabs.get(tab.id).catch(error => {
-    console.error(error);
-    return null;
-  });
+  const targetTab = await tabs.get(tabId).catch(error => {
+    console.error(error)
+    return null
+  })
 
-  if (!targetTab) return;
+  if (!targetTab) return
 
-  const targetTabUrl = targetTab.pendingUrl || targetTab.url || null;
+  const targetTabUrl = targetTab.pendingUrl || targetTab.url || null
 
-  if (!targetTabUrl || isExcluded(targetTabUrl)) return;
+  if (!targetTabUrl || isExcluded(targetTabUrl)) return
 
-  const targetTabHostName = getHostName(targetTabUrl);
-
-  const userPreferences = await storage.load('preferences', storage.preferenceDefaults).catch(error => {
-    console.error(error);
-    return storage.preferenceDefaults;
-  });
+  const targetTabHostName = getHostName(targetTabUrl)
 
   const allTabs = await getAllValidTabs()
 
   if (!allTabs) return
 
-  const tabsInGroup = findTabsInGroup(allTabs, targetTab);
+  const tabsInGroup = findTabsInGroup(allTabs, targetTab)
   const groupHasSameHostname = allTabsContainsHostname(tabsInGroup, targetTabHostName)
 
   if (tabsInGroup.length && groupHasSameHostname && targetTab.groupId !== chrome.tabGroups.TAB_GROUP_ID_NONE) {
     // this means the tab doesn't need to move, don't do anything
-    return;
+    return
   } else if (targetTab.groupId !== chrome.tabGroups.TAB_GROUP_ID_NONE) {
     // This means the tab needs to move
     try {
-      await tabs.ungroup(targetTab.id);
+      await tabs.ungroup(targetTab.id)
     } catch (error) {
       console.error(error)
     }
   }
 
-  const targetGroupId = findTargetGroupId(allTabs, targetTab, targetTabHostName);
+  const targetGroupId = findTargetGroupId(allTabs, targetTab, targetTabHostName)
 
   if (targetGroupId !== null) {
     try {
-      await tabs.group(targetTab.id, targetGroupId);
+      await tabs.group(targetTab.id, targetGroupId)
     } catch (error) {
       console.error(error)
     }
   } else {
     const matchingTabs = allTabsWithSameHostname(allTabs, targetTabHostName)
 
-    if ((userPreferences.auto_close_groups.value === true && matchingTabs.length === 1) || matchingTabs.length > 1) {
+    if (matchingTabs.length > 1) {
       const matchingTabsIds = matchingTabs.map(t => t.id)
       const newGroupId = await tabs.group(matchingTabsIds).catch(error => {
         console.error(error)
         return -1
-      });
+      })
 
       if (newGroupId === -1) return
 
-      const siteName = getSiteName(targetTabUrl);
-      const siteFaviconUrl = faviconURL(matchingTabs[0].pendingUrl || matchingTabs[0].url);
-      const groupColor = await getFaviconColor(siteFaviconUrl);
+      const siteName = getSiteName(targetTabUrl)
+      const siteFaviconUrl = faviconURL(matchingTabs[0].pendingUrl || matchingTabs[0].url)
+      const groupColor = await getFaviconColor(siteFaviconUrl)
 
       try {
-        await tabGroups.update(newGroupId, siteName, groupColor);
+        await tabGroups.update(newGroupId, { title: siteName, color: groupColor })
       } catch (error) {
         console.error(error)
       }
@@ -449,68 +426,68 @@ async function collapseUnusedGroups (tabId) {
   }
 }
 
-async function extensionIsEnabled() {
+async function extensionIsEnabled () {
   try {
-    return await storage.load('enabled', true);
+    return await storage.load('enabled', true)
   } catch (error) {
-    console.error(error);
-    return true;
+    console.error(error)
+    return true
   }
 }
 
 function findTabsInGroup (allTabs, targetTab) {
-  return allTabs.filter(t => t.groupId === targetTab.groupId && t.id !== targetTab.id);
+  return allTabs.filter(t => t.groupId === targetTab.groupId && t.id !== targetTab.id)
 }
 
 function allTabsContainsHostname (tabsInGroup, targetTabHostName) {
   return tabsInGroup.some(t => getHostName(t.pendingUrl || t.url || '') === targetTabHostName)
 }
 
-function findTargetGroupId(allTabs, targetTab, targetTabHostName) {
+function findTargetGroupId (allTabs, targetTab, targetTabHostName) {
   for (const tab of allTabs) {
-    if (tab.id === targetTab.id) continue;  // Skip the target tab
+    if (tab.id === targetTab.id) continue // Skip the target tab
 
-    const tabHostname = getHostName(tab.pendingUrl || tab.url);
+    const tabHostname = getHostName(tab.pendingUrl || tab.url)
     if (tabHostname === targetTabHostName && tab.groupId !== chrome.tabGroups.TAB_GROUP_ID_NONE) {
-        return tab.groupId;
+      return tab.groupId
     }
   }
 
-  return null;
+  return null
 }
 
-function allTabsWithSameHostname(allTabs, targetTabHostName) {
+function allTabsWithSameHostname (allTabs, targetTabHostName) {
   return allTabs.filter(tab => {
-    const tabHostname = getHostName(tab.pendingUrl || tab.url);
-    return tabHostname === targetTabHostName;
-  });
+    const tabHostname = getHostName(tab.pendingUrl || tab.url)
+    return tabHostname === targetTabHostName
+  })
 }
 
-async function getAllValidTabs() {
+async function getAllValidTabs () {
   const allTabs = await tabs.getInCurrentWindow().catch(error => {
-    console.error(error);
-    return null;
-  });
+    console.error(error)
+    return null
+  })
 
-  if (!allTabs) return null;
+  if (!allTabs) return null
 
   const validTabs = allTabs.filter(tab => {
-    const tabUrl = tab.pendingUrl || tab.url || '';
-    return !isExcluded(tabUrl);
-  });
+    const tabUrl = tab.pendingUrl || tab.url || ''
+    return !isExcluded(tabUrl)
+  })
 
-  return validTabs.length ? validTabs : null;
+  return validTabs.length ? validTabs : null
 }
 
-function findAllHostnamesInTabs(allTabs) {
+function findAllHostnamesInTabs (allTabs) {
   return [...new Set(
     allTabs
       .map(tab => getHostName(tab.pendingUrl || tab.url || ''))
       .filter(Boolean)
-  )];
+  )]
 }
 
-function getTabGroupCounts(allTabs) {
+function getTabGroupCounts (allTabs) {
   return allTabs.reduce((acc, tab) => {
     if (tab && tab.groupId !== undefined && tab.groupId !== null && tab.groupId !== chrome.tabGroups.TAB_GROUP_ID_NONE) {
       acc[tab.groupId] = (acc[tab.groupId] || 0) + 1
@@ -519,7 +496,7 @@ function getTabGroupCounts(allTabs) {
   }, {})
 }
 
-function getSingleTabGroups(groupCounts) {
+function getSingleTabGroups (groupCounts) {
   return Object.entries(groupCounts).filter(([_, count]) => count === 1)
 }
 
