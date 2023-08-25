@@ -2,9 +2,9 @@
 
 /* global chrome */
 
-export function update (groupId, title, color) {
+export function update (groupId, options) {
   return new Promise((resolve, reject) => {
-    chrome.tabGroups.update(groupId, { color, title }, function (group) {
+    chrome.tabGroups.update(groupId, options, function (group) {
       if (chrome.runtime.lastError) {
         reject(chrome.runtime.lastError.message)
       }

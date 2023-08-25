@@ -10,7 +10,6 @@ import * as tld from './modules/tld.js'
 
 chrome.runtime.onInstalled.addListener(onInstalled)
 chrome.runtime.onStartup.addListener(init)
-chrome.tabs.onCreated.addListener(onTabCreated)
 chrome.tabs.onUpdated.addListener(onTabUpdated)
 chrome.tabs.onRemoved.addListener(onTabRemoved)
 chrome.tabs.onActivated.addListener(onTabActivated)
@@ -30,11 +29,7 @@ async function init () {
 }
 
 async function setupContextMenu () {
-  const userPreferences = await storage.load('preferences', storage.preferenceDefaults).catch(error => {
-    console.error(error)
-    return storage.preferenceDefaults
-  })
-  const menuItemsFromPreferences = buildMenuStructureFromPreferences(userPreferences)
+  const menuItemsFromPreferences = buildMenuStructureFromPreferences(storage.preferenceDefaults)
 
   const menuItems = [
     {
@@ -147,10 +142,20 @@ async function loadPreferences () {
     console.error(error)
   }
 
-  const userPreferences = await storage.load('preferences', storage.preferenceDefaults).catch(error => {
+  let userPreferences = await storage.load('preferences', storage.preferenceDefaults).catch(error => {
     console.error(error)
     return storage.preferenceDefaults
   })
+
+  // Prune any changed settings
+  userPreferences = Object.fromEntries(
+    Object.entries(userPreferences).filter(
+      ([key]) => key in storage.preferenceDefaults
+    )
+  )
+
+  // Save pruned preferences back to storage
+  await storage.save('preferences', userPreferences)
 
   try {
     for (const [preferenceName, preferenceObj] of Object.entries(userPreferences)) {
@@ -162,6 +167,63 @@ async function loadPreferences () {
     }
   } catch (error) {
     console.error(error)
+  }
+}
+
+async function onTabUpdated (tabId, changes, tab) {
+  if (changes.url && tabId) {
+    await addTabToGroup(tabId)
+  }
+}
+
+async function groupAllTabsByHostname () {
+  const allTabs = await getAllValidTabs()
+
+  if (!allTabs) return
+
+  const hostnames = findAllHostnamesInTabs(allTabs)
+
+  for (const hostname of hostnames) {
+    const tabsWithThisHostname = allTabsWithSameHostname(allTabs, hostname)
+
+    if (!tabsWithThisHostname) continue
+
+    if (tabsWithThisHostname.length === 1) {
+      if (tabsWithThisHostname[0].groupId !== chrome.tabGroups.TAB_GROUP_ID_NONE) {
+        await tabs.ungroup(tabsWithThisHostname[0].id)
+      }
+
+      continue
+    }
+
+    const tabsToGroup = tabsWithThisHostname.map(tab => tab.id)
+
+    let groupId = tabsWithThisHostname[0].groupId
+
+    if (groupId === chrome.tabGroups.TAB_GROUP_ID_NONE) {
+      groupId = await tabs.group(tabsToGroup).catch(error => {
+        console.error(error)
+        return -1
+      })
+
+      if (groupId === -1) continue
+
+      const siteName = getSiteName(tabsWithThisHostname[0].pendingUrl || tabsWithThisHostname[0].url)
+      const siteFaviconUrl = faviconURL(tabsWithThisHostname[0].pendingUrl || tabsWithThisHostname[0].url)
+      const groupColor = await getFaviconColor(siteFaviconUrl)
+
+      try {
+        await tabGroups.update(groupId, { title: siteName, color: groupColor })
+      } catch (error) {
+        console.error(error)
+      }
+    } else {
+      try {
+        await tabs.group(tabsToGroup, groupId)
+      } catch (error) {
+        console.error(error)
+      }
+    }
   }
 }
 
@@ -203,11 +265,6 @@ async function onMenuClicked (info, tab) {
       console.error(error)
     }
   }
-
-  // Specific actions to be taken for preferences
-  if (menuItemId === 'auto_close_groups') {
-    await groupAllTabsByHostname()
-  }
 }
 
 async function openTab (type) {
@@ -226,124 +283,111 @@ async function openTab (type) {
   }
 }
 
-async function onTabCreated (tab) {
-  if (!tab.id) return
+async function onTabRemoved () {
+  if (!await extensionIsEnabled()) return
 
-  await addTabToGroup(tab)
-}
-
-async function onTabUpdated (tabId, changes, tab) {
-  if (!changes.url || !tab.id) return
-
-  await addTabToGroup(tab)
-}
-
-async function addTabToGroup (tab) {
-  const enabledPreference = await storage.load('enabled', true).catch(error => {
-    console.error(error)
-    return true
-  })
-
-  if (enabledPreference === false) return
-
-  const targetTab = await tabs.get(tab.id).catch(error => {
-    console.error(error)
-    return null
-  })
-
-  if (!targetTab) return
-
-  const targetTabUrl = targetTab.url || targetTab.pendingUrl || null
-
-  if (!targetTabUrl || isExcluded(targetTabUrl)) return
-
-  const targetTabHostName = getHostName(targetTabUrl)
-  const allTabs = await tabs.getInCurrentWindow().catch(error => {
-    console.error(error)
-    return null
-  })
+  const allTabs = await getAllValidTabs()
 
   if (!allTabs) return
+
+  const groupCounts = getTabGroupCounts(allTabs)
+  const singleTabGroups = getSingleTabGroups(groupCounts)
+  const singleTabGroupIds = singleTabGroups.map(([groupId]) => parseInt(groupId))
+
+  for (const groupId of singleTabGroupIds) {
+    const tabToUngroup = allTabs.find(tab => tab.groupId === groupId)
+    if (tabToUngroup) {
+      try {
+        await tabs.ungroup(tabToUngroup.id)
+      } catch (error) {
+        console.error(error)
+      }
+    }
+  }
+}
+
+async function onTabActivated (info) {
+  if (!await extensionIsEnabled()) return
 
   const userPreferences = await storage.load('preferences', storage.preferenceDefaults).catch(error => {
     console.error(error)
     return storage.preferenceDefaults
   })
 
-  if (targetTab.groupId !== chrome.tabGroups.TAB_GROUP_ID_NONE) {
-    const tabsInGroup = allTabs.filter(t => t.groupId === targetTab.groupId && t.id !== targetTab.id)
-    const groupHasSameHostname = tabsInGroup.some(t => getHostName(t.url || t.pendingUrl || '') === targetTabHostName)
+  if (userPreferences.auto_collapse_groups.value === false) return
 
-    if (!groupHasSameHostname) {
-      try {
-        if (userPreferences.auto_close_groups.value === false && tabsInGroup.length === 1) {
-          for (const t of tabsInGroup) {
-            await tabs.ungroup(t.id)
-          }
-        } else {
-          await tabs.ungroup(targetTab.id)
-        }
-        await addTabToGroup(targetTab)
-        return
-      } catch (error) {
-        console.error(error)
-      }
-    } else {
-      return
+  await collapseUnusedGroups(info.tabId)
+}
+
+async function addTabToGroup (tabId) {
+  if (!await extensionIsEnabled()) return
+
+  const targetTab = await tabs.get(tabId).catch(error => {
+    console.error(error)
+    return null
+  })
+
+  if (!targetTab) return
+
+  const targetTabUrl = targetTab.pendingUrl || targetTab.url || null
+
+  if (!targetTabUrl || isExcluded(targetTabUrl)) return
+
+  const targetTabHostName = getHostName(targetTabUrl)
+
+  const allTabs = await getAllValidTabs()
+
+  if (!allTabs) return
+
+  const tabsInGroup = findTabsInGroup(allTabs, targetTab)
+  const groupHasSameHostname = allTabsContainsHostname(tabsInGroup, targetTabHostName)
+
+  if (tabsInGroup.length && groupHasSameHostname && targetTab.groupId !== chrome.tabGroups.TAB_GROUP_ID_NONE) {
+    // this means the tab doesn't need to move, don't do anything
+    return
+  } else if (targetTab.groupId !== chrome.tabGroups.TAB_GROUP_ID_NONE) {
+    // This means the tab needs to move
+    try {
+      await tabs.ungroup(targetTab.id)
+    } catch (error) {
+      console.error(error)
     }
   }
 
-  let groupId = null
-  const tabsWithThisHostname = allTabs.reduce((accumulatedTabs, currentTab) => {
-    if (getHostName(currentTab.url || currentTab.pendingUrl || '') === targetTabHostName) {
-      accumulatedTabs.push(currentTab)
-      if (currentTab.groupId !== chrome.tabGroups.TAB_GROUP_ID_NONE && groupId === null) {
-        groupId = currentTab.groupId
-      }
-    }
-    return accumulatedTabs
-  }, [])
+  const targetGroupId = findTargetGroupId(allTabs, targetTab, targetTabHostName)
 
-  const tabsToGroup = tabsWithThisHostname.map(tab => tab.id)
-
-  if (tabsToGroup.length === 1 && userPreferences.auto_close_groups.value === false) return
-
-  if (typeof groupId !== 'number') {
-    groupId = await tabs.group(tabsToGroup).catch(error => {
-      console.error(error)
-      return -1
-    })
-
-    if (groupId === -1) return
-
-    const siteName = getSiteName(targetTabUrl)
-
-    const siteFaviconUrl = faviconURL(tabsWithThisHostname[0].url || tabsWithThisHostname[0].pendingUrl)
-    let groupColor = 'gray'
-
-    if (siteFaviconUrl) {
-      try {
-        groupColor = await getFaviconColor(siteFaviconUrl)
-      } catch (error) {
-        console.error(error)
-      }
-    }
-
+  if (targetGroupId !== null) {
     try {
-      await tabGroups.update(groupId, siteName, groupColor)
+      await tabs.group(targetTab.id, targetGroupId)
     } catch (error) {
       console.error(error)
     }
   } else {
-    try {
-      await tabs.group(tabsToGroup, groupId)
-    } catch (error) {
-      console.error(error)
+    const matchingTabs = allTabsWithSameHostname(allTabs, targetTabHostName)
+
+    if (matchingTabs.length > 1) {
+      const matchingTabsIds = matchingTabs.map(t => t.id)
+      const newGroupId = await tabs.group(matchingTabsIds).catch(error => {
+        console.error(error)
+        return -1
+      })
+
+      if (newGroupId === -1) return
+
+      const siteName = getSiteName(targetTabUrl)
+      const siteFaviconUrl = faviconURL(matchingTabs[0].pendingUrl || matchingTabs[0].url)
+      const groupColor = await getFaviconColor(siteFaviconUrl)
+
+      try {
+        await tabGroups.update(newGroupId, { title: siteName, color: groupColor })
+      } catch (error) {
+        console.error(error)
+      }
     }
   }
 }
 
-async function groupAllTabsByHostname () {
+async function collapseUnusedGroups (tabId) {
   const allTabs = await tabs.getInCurrentWindow().catch(error => {
     console.error(error)
     return null
@@ -351,65 +395,157 @@ async function groupAllTabsByHostname () {
 
   if (!allTabs) return
 
-  const hostnames = [...new Set(allTabs.map(tab => getHostName(tab.url || tab.pendingUrl || '')))]
+  const tabActivated = allTabs.find(tab => tab.id === tabId)
 
-  for (const hostname of hostnames) {
-    const tabsWithThisHostname = allTabs.filter(tab => getHostName(tab.url || tab.pendingUrl || '') === hostname)
+  if (!tabActivated) return
 
-    if (!tabsWithThisHostname) continue
+  const activeTabGroupId = tabActivated.groupId
 
-    const userPreferences = await storage.load('preferences', storage.preferenceDefaults).catch(error => {
-      console.error(error)
-      return storage.preferenceDefaults
-    })
+  if (activeTabGroupId === undefined) return
 
-    if (userPreferences.auto_close_groups.value === false && tabsWithThisHostname.length === 1) {
-      console.log('ungroup', hostname, tabsWithThisHostname[0])
+  const otherGroupIds = allTabs
+    .filter(tab => tab.groupId !== activeTabGroupId && tab.groupId !== chrome.tabGroups.TAB_GROUP_ID_NONE)
+    .map(tab => tab.groupId)
+  const uniqueOtherGroupIds = [...new Set(otherGroupIds)]
 
-      if (tabsWithThisHostname[0].groupId !== chrome.tabGroups.TAB_GROUP_ID_NONE) {
-        await tabs.ungroup(tabsWithThisHostname[0].id)
-      }
+  const MAX_RETRIES = 5
+  const RETRY_DELAY = 25
 
-      continue
-    }
-
-    const tabsToGroup = tabsWithThisHostname.map(tab => tab.id)
-
-    let groupId = tabsWithThisHostname[0].groupId
-
-    if (groupId === chrome.tabGroups.TAB_GROUP_ID_NONE) {
-      groupId = await tabs.group(tabsToGroup).catch(error => {
-        console.error(error)
-        return -1
-      })
-
-      if (groupId === -1) continue
-
-      const siteName = getSiteName(tabsWithThisHostname[0].url || tabsWithThisHostname[0].pendingUrl)
-      const siteFaviconUrl = faviconURL(tabsWithThisHostname[0].url || tabsWithThisHostname[0].pendingUrl)
-      let groupColor = 'gray'
-
-      if (siteFaviconUrl) {
-        try {
-          groupColor = await getFaviconColor(siteFaviconUrl)
-        } catch (error) {
-          console.error(error)
-        }
-      }
-
+  for (const groupId of uniqueOtherGroupIds) {
+    if (!groupId) continue
+    let retries = 0
+    while (retries < MAX_RETRIES) {
       try {
-        await tabGroups.update(groupId, siteName, groupColor)
+        await tabGroups.collapse(groupId)
+        break
       } catch (error) {
-        console.error(error)
-      }
-    } else {
-      try {
-        await tabs.group(tabsToGroup, groupId)
-      } catch (error) {
-        console.error(error)
+        retries++
+        await new Promise(resolve => setTimeout(resolve, RETRY_DELAY))
       }
     }
   }
+}
+
+async function extensionIsEnabled () {
+  try {
+    return await storage.load('enabled', true)
+  } catch (error) {
+    console.error(error)
+    return true
+  }
+}
+
+function findTabsInGroup (allTabs, targetTab) {
+  return allTabs.filter(t => t.groupId === targetTab.groupId && t.id !== targetTab.id)
+}
+
+function allTabsContainsHostname (tabsInGroup, targetTabHostName) {
+  return tabsInGroup.some(t => getHostName(t.pendingUrl || t.url || '') === targetTabHostName)
+}
+
+function findTargetGroupId (allTabs, targetTab, targetTabHostName) {
+  for (const tab of allTabs) {
+    if (tab.id === targetTab.id) continue // Skip the target tab
+
+    const tabHostname = getHostName(tab.pendingUrl || tab.url)
+    if (tabHostname === targetTabHostName && tab.groupId !== chrome.tabGroups.TAB_GROUP_ID_NONE) {
+      return tab.groupId
+    }
+  }
+
+  return null
+}
+
+function allTabsWithSameHostname (allTabs, targetTabHostName) {
+  return allTabs.filter(tab => {
+    const tabHostname = getHostName(tab.pendingUrl || tab.url)
+    return tabHostname === targetTabHostName
+  })
+}
+
+async function getAllValidTabs () {
+  const allTabs = await tabs.getInCurrentWindow().catch(error => {
+    console.error(error)
+    return null
+  })
+
+  if (!allTabs) return null
+
+  const validTabs = allTabs.filter(tab => {
+    const tabUrl = tab.pendingUrl || tab.url || ''
+    return !isExcluded(tabUrl)
+  })
+
+  return validTabs.length ? validTabs : null
+}
+
+function findAllHostnamesInTabs (allTabs) {
+  return [...new Set(
+    allTabs
+      .map(tab => getHostName(tab.pendingUrl || tab.url || ''))
+      .filter(Boolean)
+  )]
+}
+
+function getTabGroupCounts (allTabs) {
+  return allTabs.reduce((acc, tab) => {
+    if (tab && tab.groupId !== undefined && tab.groupId !== null && tab.groupId !== chrome.tabGroups.TAB_GROUP_ID_NONE) {
+      acc[tab.groupId] = (acc[tab.groupId] || 0) + 1
+    }
+    return acc
+  }, {})
+}
+
+function getSingleTabGroups (groupCounts) {
+  return Object.entries(groupCounts).filter(([_, count]) => count === 1)
+}
+
+function getHostName (url) {
+  try {
+    const parsedURL = new URL(url)
+    return parsedURL.hostname
+  } catch (error) {
+    return null
+  }
+}
+
+function getSiteName (url) {
+  try {
+    const hostname = new URL(url).hostname.replace(/^www\./, '')
+    let baseName = hostname
+
+    for (const j of tld.commonTLDs) {
+      if (baseName.endsWith(j)) {
+        baseName = baseName.replace(j, '')
+        break
+      }
+    }
+
+    return baseName
+  } catch (error) {
+    return 'Group'
+  }
+}
+
+function faviconURL (u) {
+  const url = new URL(chrome.runtime.getURL('/_favicon/'))
+  url.searchParams.set('pageUrl', u)
+  url.searchParams.set('size', '16')
+  return url.toString()
+}
+
+function isExcluded (url) {
+  const excludedUrls = [
+    'chrome://',
+    'chrome-extension://',
+    'edge://',
+    'extension://',
+    'brave://',
+    'opera://',
+    'vivaldi://'
+  ]
+
+  return excludedUrls.some(excluded => url.startsWith(excluded))
 }
 
 function calculateDistance (color1, color2) {
@@ -444,7 +580,6 @@ async function getFaviconColor (faviconUrl) {
     const canvas = new OffscreenCanvas(imageBitmap.width, imageBitmap.height)
     const ctx = canvas.getContext('2d')
     ctx.drawImage(imageBitmap, 0, 0)
-
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height).data
 
     let rTotal = 0; let gTotal = 0; let bTotal = 0
@@ -490,154 +625,5 @@ async function getFaviconColor (faviconUrl) {
   } catch (error) {
     console.error(error)
     return 'grey'
-  }
-}
-
-function faviconURL (u) {
-  const url = new URL(chrome.runtime.getURL('/_favicon/'))
-  url.searchParams.set('pageUrl', u)
-  url.searchParams.set('size', '32')
-  return url.toString()
-}
-
-function isExcluded (url) {
-  const excludedUrls = [
-    'chrome://',
-    'chrome-extension://',
-    'edge://',
-    'extension://',
-    'brave://',
-    'opera://',
-    'vivaldi://'
-  ]
-
-  return excludedUrls.some(excluded => url.startsWith(excluded))
-}
-
-async function onTabRemoved () {
-  const enabledPreference = await storage.load('enabled', true).catch(error => {
-    console.error(error)
-    return true
-  })
-
-  if (enabledPreference === false) return
-
-  const userPreferences = await storage.load('preferences', storage.preferenceDefaults).catch(error => {
-    console.error(error)
-    return storage.preferenceDefaults
-  })
-
-  if (userPreferences.auto_close_groups.value === true) return
-
-  const allTabs = await tabs.getInCurrentWindow().catch(error => {
-    console.error(error)
-    return null
-  })
-
-  if (!allTabs) return
-
-  const groupCounts = allTabs.reduce((acc, tab) => {
-    if (tab && tab.groupId !== undefined && tab.groupId !== null && tab.groupId !== chrome.tabGroups.TAB_GROUP_ID_NONE) {
-      acc[tab.groupId] = (acc[tab.groupId] || 0) + 1
-    }
-    return acc
-  }, {})
-
-  const singleTabGroups = Object.entries(groupCounts).filter(([_, count]) => count === 1)
-  const singleTabGroupIds = singleTabGroups.map(([groupId]) => parseInt(groupId))
-
-  for (const groupId of singleTabGroupIds) {
-    const tabToUngroup = allTabs.find(tab => tab.groupId === groupId)
-    if (tabToUngroup) {
-      try {
-        await tabs.ungroup(tabToUngroup.id)
-      } catch (error) {
-        console.error(error)
-      }
-    }
-  }
-}
-
-function getHostName (url) {
-  try {
-    const parsedURL = new URL(url)
-    return parsedURL.hostname
-  } catch (error) {
-    return null
-  }
-}
-
-function getSiteName (url) {
-  try {
-    const hostname = new URL(url).hostname.replace(/^www\./, '')
-    let baseName = hostname
-
-    for (const j of tld.commonTLDs) {
-      if (baseName.endsWith(j)) {
-        baseName = baseName.replace(j, '')
-        break
-      }
-    }
-
-    return baseName
-  } catch (error) {
-    return 'Group'
-  }
-}
-
-async function onTabActivated (info) {
-  const enabledPreference = await storage.load('enabled', true).catch(error => {
-    console.error(error)
-    return true
-  })
-
-  if (enabledPreference === false) return
-
-  const userPreferences = await storage.load('preferences', storage.preferenceDefaults).catch(error => {
-    console.error(error)
-    return storage.preferenceDefaults
-  })
-
-  if (userPreferences.auto_collapse_groups.value === false) return
-
-  await collapseUnusedGroups(info.tabId)
-}
-
-async function collapseUnusedGroups (tabId) {
-  const allTabs = await tabs.getInCurrentWindow().catch(error => {
-    console.error(error)
-    return null
-  })
-
-  if (!allTabs) return
-
-  const tabActivated = allTabs.find(tab => tab.id === tabId)
-
-  if (!tabActivated) return
-
-  const activeTabGroupId = tabActivated.groupId
-
-  if (activeTabGroupId === undefined) return
-
-  const otherGroupIds = allTabs
-    .filter(tab => tab.groupId !== activeTabGroupId && tab.groupId !== chrome.tabGroups.TAB_GROUP_ID_NONE)
-    .map(tab => tab.groupId)
-  const uniqueOtherGroupIds = [...new Set(otherGroupIds)]
-
-  const MAX_RETRIES = 5
-  const RETRY_DELAY = 25
-
-  for (const groupId of uniqueOtherGroupIds) {
-    if (!groupId) continue
-    let retries = 0
-    while (retries < MAX_RETRIES) {
-      try {
-        await tabGroups.collapse(groupId)
-        break
-      } catch (error) {
-        retries++
-        await new Promise(resolve => setTimeout(resolve, RETRY_DELAY))
-      }
-    }
   }
 }

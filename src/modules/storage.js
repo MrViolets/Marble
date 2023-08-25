@@ -3,11 +3,6 @@
 /* global chrome */
 
 export const preferenceDefaults = {
-  auto_close_groups: {
-    title: chrome.i18n.getMessage('MENU_AUTO_CLOSE'),
-    value: false,
-    type: 'checkbox'
-  },
   auto_collapse_groups: {
     title: chrome.i18n.getMessage('MENU_AUTO_COLLAPSE'),
     value: false,
