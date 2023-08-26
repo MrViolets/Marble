@@ -285,6 +285,13 @@ async function openTab (type) {
 async function onTabRemoved () {
   if (!await extensionIsEnabled()) return
 
+  const userPreferences = await storage.load('preferences', storage.preferenceDefaults).catch(error => {
+    console.error(error)
+    return storage.preferenceDefaults
+  })
+
+  if (userPreferences.auto_close_groups.value === false) return
+
   const allTabs = await getAllValidTabs()
 
   if (!allTabs) return

@@ -15,7 +15,7 @@
     "message": "Enable Tably"
   },
   "MENU_AUTO_CLOSE": {
-    "message": "Allow Single-Tab Groups"
+    "message": "Close Single-Tab Groups"
   },
   "MENU_AUTO_COLLAPSE": {
     "message": "Collapse Groups When Not in Use"
