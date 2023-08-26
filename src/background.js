@@ -444,28 +444,28 @@ function findTabsInGroup (allTabs, targetTab) {
   return allTabs.filter(t => t.groupId === targetTab.groupId && t.id !== targetTab.id)
 }
 
-function allTabsContainsHostname(tabsInGroup, targetTabHostName) {
-  return tabsInGroup.some(t => parseUrl(t.pendingUrl || t.url || '').domain === targetTabHostName);
+function allTabsContainsHostname (tabsInGroup, targetTabHostName) {
+  return tabsInGroup.some(t => parseUrl(t.pendingUrl || t.url || '').domain === targetTabHostName)
 }
 
-function findTargetGroupId(allTabs, targetTab, targetTabHostName) {
+function findTargetGroupId (allTabs, targetTab, targetTabHostName) {
   for (const tab of allTabs) {
     if (tab.id === targetTab.id) continue // Skip the target tab
 
-    const tabHostname = parseUrl(tab.pendingUrl || tab.url).domain;
+    const tabHostname = parseUrl(tab.pendingUrl || tab.url).domain
     if (tabHostname === targetTabHostName && tab.groupId !== chrome.tabGroups.TAB_GROUP_ID_NONE) {
-      return tab.groupId;
+      return tab.groupId
     }
   }
 
-  return null;
+  return null
 }
 
-function allTabsWithSameHostname(allTabs, targetTabHostName) {
+function allTabsWithSameHostname (allTabs, targetTabHostName) {
   return allTabs.filter(tab => {
-    const tabHostname = parseUrl(tab.pendingUrl || tab.url).domain;
-    return tabHostname === targetTabHostName;
-  });
+    const tabHostname = parseUrl(tab.pendingUrl || tab.url).domain
+    return tabHostname === targetTabHostName
+  })
 }
 
 async function getAllValidTabs () {
@@ -484,12 +484,12 @@ async function getAllValidTabs () {
   return validTabs.length ? validTabs : null
 }
 
-function findAllHostnamesInTabs(allTabs) {
+function findAllHostnamesInTabs (allTabs) {
   return [...new Set(
     allTabs
       .map(tab => parseUrl(tab.pendingUrl || tab.url || '').domain)
       .filter(Boolean)
-  )];
+  )]
 }
 
 function getTabGroupCounts (allTabs) {
@@ -608,36 +608,35 @@ async function getFaviconColor (faviconUrl) {
 
 function parseUrl (inputUrl) {
   if (!inputUrl || inputUrl.length === 0) {
-      return {};
+    return {}
   }
 
-  const url = new URL(inputUrl);
-  const domainParts = url.hostname.split('.');
+  const url = new URL(inputUrl)
+  const domainParts = url.hostname.split('.')
 
-  let topLevelDomain;
-  let host;
-  let subdomain = '';
+  let topLevelDomain
+  let subdomain = ''
 
-  topLevelDomain = domainParts.pop();
+  topLevelDomain = domainParts.pop()
 
-  const secondaryTLDs = ['co', 'com', 'ac', 'gov', 'net', 'org', 'edu'];
+  const secondaryTLDs = ['co', 'com', 'ac', 'gov', 'net', 'org', 'edu']
   if (domainParts.length && secondaryTLDs.includes(domainParts[domainParts.length - 1])) {
-      topLevelDomain = `${domainParts.pop()}.${topLevelDomain}`;
+    topLevelDomain = `${domainParts.pop()}.${topLevelDomain}`
   }
 
-  host = domainParts.pop();
+  const host = domainParts.pop()
 
   if (domainParts.length) {
-      subdomain = domainParts.join('.');
+    subdomain = domainParts.join('.')
   }
 
   return {
-      protocol: url.protocol.slice(0, -1),
-      domain: url.hostname,
-      path: url.pathname.startsWith('/') ? url.pathname.slice(1) : url.pathname,
-      subdomain: subdomain,
-      host: host,
-      tld: topLevelDomain,
-      parentDomain: host ? `${host}.${topLevelDomain}` : ''
-  };
+    protocol: url.protocol.slice(0, -1),
+    domain: url.hostname,
+    path: url.pathname.startsWith('/') ? url.pathname.slice(1) : url.pathname,
+    subdomain,
+    host,
+    tld: topLevelDomain,
+    parentDomain: host ? `${host}.${topLevelDomain}` : ''
+  }
 }
