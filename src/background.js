@@ -6,7 +6,6 @@ import * as menu from './modules/menu.js'
 import * as storage from './modules/storage.js'
 import * as tabs from './modules/tabs.js'
 import * as tabGroups from './modules/tabGroups.js'
-import * as tld from './modules/tld.js'
 
 chrome.runtime.onInstalled.addListener(onInstalled)
 chrome.runtime.onStartup.addListener(init)
