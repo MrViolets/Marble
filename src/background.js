@@ -6,7 +6,6 @@ import * as menu from './modules/menu.js'
 import * as storage from './modules/storage.js'
 import * as tabs from './modules/tabs.js'
 import * as tabGroups from './modules/tabGroups.js'
-import * as tld from './modules/tld.js'
 
 chrome.runtime.onInstalled.addListener(onInstalled)
 chrome.runtime.onStartup.addListener(init)
@@ -208,7 +207,7 @@ async function groupAllTabsByHostname () {
 
       if (groupId === -1) continue
 
-      const siteName = getSiteName(tabsWithThisHostname[0].pendingUrl || tabsWithThisHostname[0].url)
+      const siteName = parseUrl(tabsWithThisHostname[0].pendingUrl || tabsWithThisHostname[0].url).host || 'Untitled'
       const siteFaviconUrl = faviconURL(tabsWithThisHostname[0].pendingUrl || tabsWithThisHostname[0].url)
       const groupColor = await getFaviconColor(siteFaviconUrl)
 
@@ -286,6 +285,13 @@ async function openTab (type) {
 async function onTabRemoved () {
   if (!await extensionIsEnabled()) return
 
+  const userPreferences = await storage.load('preferences', storage.preferenceDefaults).catch(error => {
+    console.error(error)
+    return storage.preferenceDefaults
+  })
+
+  if (userPreferences.auto_close_groups.value === false) return
+
   const allTabs = await getAllValidTabs()
 
   if (!allTabs) return
@@ -333,14 +339,13 @@ async function addTabToGroup (tabId) {
 
   if (!targetTabUrl || isExcluded(targetTabUrl)) return
 
-  const targetTabHostName = getHostName(targetTabUrl)
-
+  const parsedUrl = parseUrl(targetTabUrl)
   const allTabs = await getAllValidTabs()
 
   if (!allTabs) return
 
   const tabsInGroup = findTabsInGroup(allTabs, targetTab)
-  const groupHasSameHostname = allTabsContainsHostname(tabsInGroup, targetTabHostName)
+  const groupHasSameHostname = allTabsContainsHostname(tabsInGroup, parsedUrl.domain)
 
   if (tabsInGroup.length && groupHasSameHostname && targetTab.groupId !== chrome.tabGroups.TAB_GROUP_ID_NONE) {
     // this means the tab doesn't need to move, don't do anything
@@ -354,7 +359,7 @@ async function addTabToGroup (tabId) {
     }
   }
 
-  const targetGroupId = findTargetGroupId(allTabs, targetTab, targetTabHostName)
+  const targetGroupId = findTargetGroupId(allTabs, targetTab, parsedUrl.domain)
 
   if (targetGroupId !== null) {
     try {
@@ -363,7 +368,7 @@ async function addTabToGroup (tabId) {
       console.error(error)
     }
   } else {
-    const matchingTabs = allTabsWithSameHostname(allTabs, targetTabHostName)
+    const matchingTabs = allTabsWithSameHostname(allTabs, parsedUrl.domain)
 
     if (matchingTabs.length > 1) {
       const matchingTabsIds = matchingTabs.map(t => t.id)
@@ -374,7 +379,7 @@ async function addTabToGroup (tabId) {
 
       if (newGroupId === -1) return
 
-      const siteName = getSiteName(targetTabUrl)
+      const siteName = parsedUrl.host || 'Untitled'
       const siteFaviconUrl = faviconURL(matchingTabs[0].pendingUrl || matchingTabs[0].url)
       const groupColor = await getFaviconColor(siteFaviconUrl)
 
@@ -439,28 +444,28 @@ function findTabsInGroup (allTabs, targetTab) {
   return allTabs.filter(t => t.groupId === targetTab.groupId && t.id !== targetTab.id)
 }
 
-function allTabsContainsHostname (tabsInGroup, targetTabHostName) {
-  return tabsInGroup.some(t => getHostName(t.pendingUrl || t.url || '') === targetTabHostName)
+function allTabsContainsHostname(tabsInGroup, targetTabHostName) {
+  return tabsInGroup.some(t => parseUrl(t.pendingUrl || t.url || '').domain === targetTabHostName);
 }
 
-function findTargetGroupId (allTabs, targetTab, targetTabHostName) {
+function findTargetGroupId(allTabs, targetTab, targetTabHostName) {
   for (const tab of allTabs) {
     if (tab.id === targetTab.id) continue // Skip the target tab
 
-    const tabHostname = getHostName(tab.pendingUrl || tab.url)
+    const tabHostname = parseUrl(tab.pendingUrl || tab.url).domain;
     if (tabHostname === targetTabHostName && tab.groupId !== chrome.tabGroups.TAB_GROUP_ID_NONE) {
-      return tab.groupId
+      return tab.groupId;
     }
   }
 
-  return null
+  return null;
 }
 
-function allTabsWithSameHostname (allTabs, targetTabHostName) {
+function allTabsWithSameHostname(allTabs, targetTabHostName) {
   return allTabs.filter(tab => {
-    const tabHostname = getHostName(tab.pendingUrl || tab.url)
-    return tabHostname === targetTabHostName
-  })
+    const tabHostname = parseUrl(tab.pendingUrl || tab.url).domain;
+    return tabHostname === targetTabHostName;
+  });
 }
 
 async function getAllValidTabs () {
@@ -479,12 +484,12 @@ async function getAllValidTabs () {
   return validTabs.length ? validTabs : null
 }
 
-function findAllHostnamesInTabs (allTabs) {
+function findAllHostnamesInTabs(allTabs) {
   return [...new Set(
     allTabs
-      .map(tab => getHostName(tab.pendingUrl || tab.url || ''))
+      .map(tab => parseUrl(tab.pendingUrl || tab.url || '').domain)
       .filter(Boolean)
-  )]
+  )];
 }
 
 function getTabGroupCounts (allTabs) {
@@ -498,33 +503,6 @@ function getTabGroupCounts (allTabs) {
 
 function getSingleTabGroups (groupCounts) {
   return Object.entries(groupCounts).filter(([_, count]) => count === 1)
-}
-
-function getHostName (url) {
-  try {
-    const parsedURL = new URL(url)
-    return parsedURL.hostname
-  } catch (error) {
-    return null
-  }
-}
-
-function getSiteName (url) {
-  try {
-    const hostname = new URL(url).hostname.replace(/^www\./, '')
-    let baseName = hostname
-
-    for (const j of tld.commonTLDs) {
-      if (baseName.endsWith(j)) {
-        baseName = baseName.replace(j, '')
-        break
-      }
-    }
-
-    return baseName
-  } catch (error) {
-    return 'Group'
-  }
 }
 
 function faviconURL (u) {
@@ -626,4 +604,40 @@ async function getFaviconColor (faviconUrl) {
     console.error(error)
     return 'grey'
   }
+}
+
+function parseUrl (inputUrl) {
+  if (!inputUrl || inputUrl.length === 0) {
+      return {};
+  }
+
+  const url = new URL(inputUrl);
+  const domainParts = url.hostname.split('.');
+
+  let topLevelDomain;
+  let host;
+  let subdomain = '';
+
+  topLevelDomain = domainParts.pop();
+
+  const secondaryTLDs = ['co', 'com', 'ac', 'gov', 'net', 'org', 'edu'];
+  if (domainParts.length && secondaryTLDs.includes(domainParts[domainParts.length - 1])) {
+      topLevelDomain = `${domainParts.pop()}.${topLevelDomain}`;
+  }
+
+  host = domainParts.pop();
+
+  if (domainParts.length) {
+      subdomain = domainParts.join('.');
+  }
+
+  return {
+      protocol: url.protocol.slice(0, -1),
+      domain: url.hostname,
+      path: url.pathname.startsWith('/') ? url.pathname.slice(1) : url.pathname,
+      subdomain: subdomain,
+      host: host,
+      tld: topLevelDomain,
+      parentDomain: host ? `${host}.${topLevelDomain}` : ''
+  };
 }
