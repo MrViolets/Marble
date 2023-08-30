@@ -207,7 +207,7 @@ async function groupAllTabsByHostname () {
 
       if (groupId === -1) continue
 
-      const siteName = parseUrl(tabsWithThisHostname[0].pendingUrl || tabsWithThisHostname[0].url).host || 'Untitled'
+      const siteName = parseUrl(tabsWithThisHostname[0].pendingUrl || tabsWithThisHostname[0].url).siteName || 'Untitled'
       const siteFaviconUrl = faviconURL(tabsWithThisHostname[0].pendingUrl || tabsWithThisHostname[0].url)
       const groupColor = await getFaviconColor(siteFaviconUrl)
 
@@ -379,7 +379,7 @@ async function addTabToGroup (tabId) {
 
       if (newGroupId === -1) return
 
-      const siteName = parsedUrl.host || 'Untitled'
+      const siteName = parsedUrl.siteName || 'Untitled'
       const siteFaviconUrl = faviconURL(matchingTabs[0].pendingUrl || matchingTabs[0].url)
       const groupColor = await getFaviconColor(siteFaviconUrl)
 
@@ -606,28 +606,35 @@ async function getFaviconColor (faviconUrl) {
   }
 }
 
-function parseUrl (inputUrl) {
+function parseUrl(inputUrl) {
   if (!inputUrl || inputUrl.length === 0) {
-    return {}
+    return {};
   }
 
-  const url = new URL(inputUrl)
-  const domainParts = url.hostname.split('.')
+  const url = new URL(inputUrl);
+  const domainParts = url.hostname.split('.');
 
-  let topLevelDomain
-  let subdomain = ''
+  let topLevelDomain;
+  let subdomain = '';
 
-  topLevelDomain = domainParts.pop()
+  topLevelDomain = domainParts.pop();
 
-  const secondaryTLDs = ['co', 'com', 'ac', 'gov', 'net', 'org', 'edu']
+  const secondaryTLDs = ['co', 'com', 'ac', 'gov', 'net', 'org', 'edu'];
   if (domainParts.length && secondaryTLDs.includes(domainParts[domainParts.length - 1])) {
-    topLevelDomain = `${domainParts.pop()}.${topLevelDomain}`
+    topLevelDomain = `${domainParts.pop()}.${topLevelDomain}`;
   }
 
-  const host = domainParts.pop()
+  const host = domainParts.pop();
 
   if (domainParts.length) {
-    subdomain = domainParts.join('.')
+    subdomain = domainParts.join('.');
+  }
+
+  let siteName;
+  if (subdomain === 'www') {
+    siteName = host;
+  } else {
+    siteName = subdomain.length > 0 ? `${subdomain}.${host}` : host;
   }
 
   return {
@@ -637,6 +644,7 @@ function parseUrl (inputUrl) {
     subdomain,
     host,
     tld: topLevelDomain,
-    parentDomain: host ? `${host}.${topLevelDomain}` : ''
-  }
+    parentDomain: host ? `${host}.${topLevelDomain}` : '',
+    siteName,
+  };
 }
