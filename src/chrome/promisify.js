@@ -4,8 +4,9 @@
 
 export const menusCreate = promisifyChromeMethod(chrome.contextMenus.create.bind(chrome.contextMenus))
 export const menusUpdate = promisifyChromeMethod(chrome.contextMenus.update.bind(chrome.contextMenus))
-export const storageSyncGet = promisifyChromeMethod(chrome.storage.sync.get.bind(chrome.storage.sync))
-export const storageSyncSet = promisifyChromeMethod(chrome.storage.sync.set.bind(chrome.storage.sync))
+export const menusRemoveAll = promisifyChromeMethod(chrome.contextMenus.removeAll.bind(chrome.contextMenus))
+export const storageLocalGet = promisifyChromeMethod(chrome.storage.local.get.bind(chrome.storage.local))
+export const storageLocalSet = promisifyChromeMethod(chrome.storage.local.set.bind(chrome.storage.local))
 export const tabGroupsUpdate = promisifyChromeMethod(chrome.tabGroups.update.bind(chrome.tabGroups))
 export const tabsCreate = promisifyChromeMethod(chrome.tabs.create.bind(chrome.tabs))
 export const tabsUngroup = promisifyChromeMethod(chrome.tabs.ungroup.bind(chrome.tabs))

@@ -72,9 +72,14 @@ async function setupContextMenu () {
     }
   ]
 
+  try {
+    await ch.menusRemoveAll()
+  } catch (error) {
+    console.error(error)
+  }
+
   for (const item of menuItems) {
     try {
-      console.log(item)
       await ch.menusCreate(item)
     } catch (error) {
       console.error(error)
@@ -143,7 +148,7 @@ function getMenuItem (preference, key) {
 }
 
 async function loadPreferences () {
-  const ePrefResult = await ch.storageSyncGet({ enabled: true }).catch(error => {
+  const ePrefResult = await ch.storageLocalGet({ enabled: true }).catch(error => {
     console.error(error)
     return { enabled: true }
   })
@@ -156,7 +161,7 @@ async function loadPreferences () {
     console.error(error)
   }
 
-  const prefResult = await ch.storageSyncGet({ preferences: preferenceDefaults }).catch(error => {
+  const prefResult = await ch.storageLocalGet({ preferences: preferenceDefaults }).catch(error => {
     console.error(error)
     return { preferences: preferenceDefaults }
   })
@@ -172,7 +177,7 @@ async function loadPreferences () {
 
   try {
     // Save pruned preferences back to storage
-    await ch.storageSyncSet({ preferences: userPreferences })
+    await ch.storageLocalSet({ preferences: userPreferences })
 
     for (const [preferenceName, preferenceObj] of Object.entries(userPreferences)) {
       if (preferenceObj.type === 'radio') {
@@ -247,7 +252,7 @@ async function onMenuClicked (info, tab) {
   const { menuItemId, parentMenuItemId, checked } = info
 
   if (preferenceDefaults[menuItemId] || preferenceDefaults[parentMenuItemId ?? '']) {
-    const prefResult = await ch.storageSyncGet({ preferences: preferenceDefaults }).catch(error => {
+    const prefResult = await ch.storageLocalGet({ preferences: preferenceDefaults }).catch(error => {
       console.error(error)
       return { preferences: preferenceDefaults }
     })
@@ -264,7 +269,7 @@ async function onMenuClicked (info, tab) {
     }
 
     try {
-      await ch.storageSyncSet({ preferences: userPreferences })
+      await ch.storageLocalSet({ preferences: userPreferences })
     } catch (error) {
       console.error(error)
     }
@@ -280,7 +285,7 @@ async function onMenuClicked (info, tab) {
         await groupAllTabsByHostname()
       }
 
-      await ch.storageSyncSet({ enabled: checked })
+      await ch.storageLocalSet({ enabled: checked })
     } catch (error) {
       console.error(error)
     }
@@ -306,7 +311,7 @@ async function openTab (type) {
 async function onTabRemoved () {
   if (!await extensionIsEnabled()) return
 
-  const prefResult = await ch.storageSyncGet({ preferences: preferenceDefaults }).catch(error => {
+  const prefResult = await ch.storageLocalGet({ preferences: preferenceDefaults }).catch(error => {
     console.error(error)
     return { preferences: preferenceDefaults }
   })
@@ -338,7 +343,7 @@ async function onTabRemoved () {
 async function onTabActivated (info) {
   if (!await extensionIsEnabled()) return
 
-  const prefResult = await ch.storageSyncGet({ preferences: preferenceDefaults }).catch(error => {
+  const prefResult = await ch.storageLocalGet({ preferences: preferenceDefaults }).catch(error => {
     console.error(error)
     return { preferences: preferenceDefaults }
   })
@@ -459,7 +464,7 @@ async function collapseUnusedGroups (tabId) {
 
 async function extensionIsEnabled () {
   try {
-    const ePrefResult = await ch.storageSyncGet({ enabled: true }).catch(error => {
+    const ePrefResult = await ch.storageLocalGet({ enabled: true }).catch(error => {
       console.error(error)
       return { enabled: true }
     })
