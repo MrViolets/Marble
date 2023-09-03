@@ -2,33 +2,43 @@
 
 /* global chrome, createImageBitmap, OffscreenCanvas */
 
-import * as menu from './modules/menu.js'
-import * as storage from './modules/storage.js'
-import * as tabs from './modules/tabs.js'
-import * as tabGroups from './modules/tabGroups.js'
+import * as ch from './chrome/promisify.js'
 
 chrome.runtime.onInstalled.addListener(onInstalled)
-chrome.runtime.onStartup.addListener(init)
+chrome.runtime.onStartup.addListener(onStartup)
 chrome.tabs.onUpdated.addListener(onTabUpdated)
 chrome.tabs.onRemoved.addListener(onTabRemoved)
 chrome.tabs.onActivated.addListener(onTabActivated)
 chrome.contextMenus.onClicked.addListener(onMenuClicked)
 
+const preferenceDefaults = {
+  auto_close_groups: {
+    title: chrome.i18n.getMessage('MENU_AUTO_CLOSE'),
+    value: true,
+    type: 'checkbox'
+  },
+  auto_collapse_groups: {
+    title: chrome.i18n.getMessage('MENU_AUTO_COLLAPSE'),
+    value: false,
+    type: 'checkbox'
+  }
+}
+
 async function onInstalled (info) {
-  await init()
+  await setupContextMenu()
+  await loadPreferences()
 
   if (info.reason === 'install') {
     await groupAllTabsByHostname()
   }
 }
 
-async function init () {
-  await setupContextMenu()
+async function onStartup () {
   await loadPreferences()
 }
 
 async function setupContextMenu () {
-  const menuItemsFromPreferences = buildMenuStructureFromPreferences(storage.preferenceDefaults)
+  const menuItemsFromPreferences = buildMenuStructureFromPreferences(preferenceDefaults)
 
   const menuItems = [
     {
@@ -62,10 +72,13 @@ async function setupContextMenu () {
     }
   ]
 
-  try {
-    await menu.create(menuItems)
-  } catch (error) {
-    console.error(error)
+  for (const item of menuItems) {
+    try {
+      console.log(item)
+      await ch.menusCreate(item)
+    } catch (error) {
+      console.error(error)
+    }
   }
 }
 
@@ -130,38 +143,42 @@ function getMenuItem (preference, key) {
 }
 
 async function loadPreferences () {
-  const enabledPreference = await storage.load('enabled', true).catch(error => {
+  const ePrefResult = await ch.storageSyncGet({ enabled: true }).catch(error => {
     console.error(error)
-    return true
+    return { enabled: true }
   })
 
+  const enabledPreference = ePrefResult.enabled
+
   try {
-    await menu.update('toggle_extension', enabledPreference)
+    await ch.menusUpdate('toggle_extension', { checked: enabledPreference })
   } catch (error) {
     console.error(error)
   }
 
-  let userPreferences = await storage.load('preferences', storage.preferenceDefaults).catch(error => {
+  const prefResult = await ch.storageSyncGet({ preferences: preferenceDefaults }).catch(error => {
     console.error(error)
-    return storage.preferenceDefaults
+    return { preferences: preferenceDefaults }
   })
+
+  let userPreferences = prefResult.preferences
 
   // Prune any changed settings
   userPreferences = Object.fromEntries(
     Object.entries(userPreferences).filter(
-      ([key]) => key in storage.preferenceDefaults
+      ([key]) => key in preferenceDefaults
     )
   )
 
-  // Save pruned preferences back to storage
-  await storage.save('preferences', userPreferences)
-
   try {
+    // Save pruned preferences back to storage
+    await ch.storageSyncSet({ preferences: userPreferences })
+
     for (const [preferenceName, preferenceObj] of Object.entries(userPreferences)) {
       if (preferenceObj.type === 'radio') {
-        await menu.update(`${preferenceName}.${preferenceObj.value}`, true)
+        await ch.menusUpdate(`${preferenceName}.${preferenceObj.value}`, { checked: true })
       } else if (preferenceObj.type === 'checkbox') {
-        await menu.update(preferenceName, preferenceObj.value)
+        await ch.menusUpdate(preferenceName, { checked: preferenceObj.value })
       }
     }
   } catch (error) {
@@ -189,7 +206,7 @@ async function groupAllTabsByHostname () {
 
     if (tabsWithThisHostname.length === 1) {
       if (tabsWithThisHostname[0].groupId !== chrome.tabGroups.TAB_GROUP_ID_NONE) {
-        await tabs.ungroup(tabsWithThisHostname[0].id)
+        await ch.tabsUngroup(tabsWithThisHostname[0].id)
       }
 
       continue
@@ -200,7 +217,7 @@ async function groupAllTabsByHostname () {
     let groupId = tabsWithThisHostname[0].groupId
 
     if (groupId === chrome.tabGroups.TAB_GROUP_ID_NONE) {
-      groupId = await tabs.group(tabsToGroup).catch(error => {
+      groupId = await ch.tabsGroup({ tabIds: tabsToGroup }).catch(error => {
         console.error(error)
         return -1
       })
@@ -212,13 +229,13 @@ async function groupAllTabsByHostname () {
       const groupColor = await getFaviconColor(siteFaviconUrl)
 
       try {
-        await tabGroups.update(groupId, { title: siteName, color: groupColor })
+        await ch.tabGroupsUpdate(groupId, { title: siteName, color: groupColor })
       } catch (error) {
         console.error(error)
       }
     } else {
       try {
-        await tabs.group(tabsToGroup, groupId)
+        await ch.tabsGroup({ tabIds: tabsToGroup, groupId })
       } catch (error) {
         console.error(error)
       }
@@ -229,11 +246,14 @@ async function groupAllTabsByHostname () {
 async function onMenuClicked (info, tab) {
   const { menuItemId, parentMenuItemId, checked } = info
 
-  if (storage.preferenceDefaults[menuItemId] || storage.preferenceDefaults[parentMenuItemId ?? '']) {
-    const userPreferences = await storage.load('preferences', storage.preferenceDefaults).catch(error => {
+  if (preferenceDefaults[menuItemId] || preferenceDefaults[parentMenuItemId ?? '']) {
+    const prefResult = await ch.storageSyncGet({ preferences: preferenceDefaults }).catch(error => {
       console.error(error)
-      return storage.preferenceDefaults
+      return { preferences: preferenceDefaults }
     })
+
+    const userPreferences = prefResult.preferences
+
     const preference = userPreferences[menuItemId]
     const parentPreference = userPreferences[parentMenuItemId ?? '']
 
@@ -244,7 +264,7 @@ async function onMenuClicked (info, tab) {
     }
 
     try {
-      await storage.save('preferences', userPreferences)
+      await ch.storageSyncSet({ preferences: userPreferences })
     } catch (error) {
       console.error(error)
     }
@@ -255,11 +275,12 @@ async function onMenuClicked (info, tab) {
       console.error(error)
     }
   } else if (menuItemId === 'toggle_extension') {
-    if (checked) {
-      await groupAllTabsByHostname()
-    }
     try {
-      await storage.save('enabled', checked)
+      if (checked) {
+        await groupAllTabsByHostname()
+      }
+
+      await ch.storageSyncSet({ enabled: checked })
     } catch (error) {
       console.error(error)
     }
@@ -275,7 +296,7 @@ async function openTab (type) {
   const url = urls[type]
   if (url) {
     try {
-      await tabs.create(url)
+      await ch.tabsCreate({ url })
     } catch (error) {
       console.error(error)
     }
@@ -285,10 +306,12 @@ async function openTab (type) {
 async function onTabRemoved () {
   if (!await extensionIsEnabled()) return
 
-  const userPreferences = await storage.load('preferences', storage.preferenceDefaults).catch(error => {
+  const prefResult = await ch.storageSyncGet({ preferences: preferenceDefaults }).catch(error => {
     console.error(error)
-    return storage.preferenceDefaults
+    return { preferences: preferenceDefaults }
   })
+
+  const userPreferences = prefResult.preferences
 
   if (userPreferences.auto_close_groups.value === false) return
 
@@ -304,7 +327,7 @@ async function onTabRemoved () {
     const tabToUngroup = allTabs.find(tab => tab.groupId === groupId)
     if (tabToUngroup) {
       try {
-        await tabs.ungroup(tabToUngroup.id)
+        await ch.tabsUngroup(tabToUngroup.id)
       } catch (error) {
         console.error(error)
       }
@@ -315,10 +338,12 @@ async function onTabRemoved () {
 async function onTabActivated (info) {
   if (!await extensionIsEnabled()) return
 
-  const userPreferences = await storage.load('preferences', storage.preferenceDefaults).catch(error => {
+  const prefResult = await ch.storageSyncGet({ preferences: preferenceDefaults }).catch(error => {
     console.error(error)
-    return storage.preferenceDefaults
+    return { preferences: preferenceDefaults }
   })
+
+  const userPreferences = prefResult.preferences
 
   if (userPreferences.auto_collapse_groups.value === false) return
 
@@ -328,7 +353,7 @@ async function onTabActivated (info) {
 async function addTabToGroup (tabId) {
   if (!await extensionIsEnabled()) return
 
-  const targetTab = await tabs.get(tabId).catch(error => {
+  const targetTab = await ch.tabsGet(tabId).catch(error => {
     console.error(error)
     return null
   })
@@ -353,7 +378,7 @@ async function addTabToGroup (tabId) {
   } else if (targetTab.groupId !== chrome.tabGroups.TAB_GROUP_ID_NONE) {
     // This means the tab needs to move
     try {
-      await tabs.ungroup(targetTab.id)
+      await ch.tabsUngroup(targetTab.id)
     } catch (error) {
       console.error(error)
     }
@@ -363,7 +388,7 @@ async function addTabToGroup (tabId) {
 
   if (targetGroupId !== null) {
     try {
-      await tabs.group(targetTab.id, targetGroupId)
+      await ch.tabsGroup({ tabIds: [targetTab.id], groupId: targetGroupId })
     } catch (error) {
       console.error(error)
     }
@@ -372,7 +397,8 @@ async function addTabToGroup (tabId) {
 
     if (matchingTabs.length > 1) {
       const matchingTabsIds = matchingTabs.map(t => t.id)
-      const newGroupId = await tabs.group(matchingTabsIds).catch(error => {
+
+      const newGroupId = await ch.tabsGroup({ tabIds: matchingTabsIds }).catch(error => {
         console.error(error)
         return -1
       })
@@ -384,7 +410,7 @@ async function addTabToGroup (tabId) {
       const groupColor = await getFaviconColor(siteFaviconUrl)
 
       try {
-        await tabGroups.update(newGroupId, { title: siteName, color: groupColor })
+        await ch.tabGroupsUpdate(newGroupId, { title: siteName, color: groupColor })
       } catch (error) {
         console.error(error)
       }
@@ -393,9 +419,9 @@ async function addTabToGroup (tabId) {
 }
 
 async function collapseUnusedGroups (tabId) {
-  const allTabs = await tabs.getInCurrentWindow().catch(error => {
+  const allTabs = await ch.tabsQuery({ currentWindow: true }).catch(error => {
     console.error(error)
-    return null
+    return []
   })
 
   if (!allTabs) return
@@ -421,7 +447,7 @@ async function collapseUnusedGroups (tabId) {
     let retries = 0
     while (retries < MAX_RETRIES) {
       try {
-        await tabGroups.collapse(groupId)
+        await ch.tabGroupsUpdate(groupId, { collapsed: true })
         break
       } catch (error) {
         retries++
@@ -433,7 +459,12 @@ async function collapseUnusedGroups (tabId) {
 
 async function extensionIsEnabled () {
   try {
-    return await storage.load('enabled', true)
+    const ePrefResult = await ch.storageSyncGet({ enabled: true }).catch(error => {
+      console.error(error)
+      return { enabled: true }
+    })
+
+    return ePrefResult.enabled
   } catch (error) {
     console.error(error)
     return true
@@ -469,9 +500,9 @@ function allTabsWithSameHostname (allTabs, targetTabHostName) {
 }
 
 async function getAllValidTabs () {
-  const allTabs = await tabs.getInCurrentWindow().catch(error => {
+  const allTabs = await ch.tabsQuery({ currentWindow: true }).catch(error => {
     console.error(error)
-    return null
+    return []
   })
 
   if (!allTabs) return null
@@ -606,35 +637,35 @@ async function getFaviconColor (faviconUrl) {
   }
 }
 
-function parseUrl(inputUrl) {
+function parseUrl (inputUrl) {
   if (!inputUrl || inputUrl.length === 0) {
-    return {};
+    return {}
   }
 
-  const url = new URL(inputUrl);
-  const domainParts = url.hostname.split('.');
+  const url = new URL(inputUrl)
+  const domainParts = url.hostname.split('.')
 
-  let topLevelDomain;
-  let subdomain = '';
+  let topLevelDomain
+  let subdomain = ''
 
-  topLevelDomain = domainParts.pop();
+  topLevelDomain = domainParts.pop()
 
-  const secondaryTLDs = ['co', 'com', 'ac', 'gov', 'net', 'org', 'edu'];
+  const secondaryTLDs = ['co', 'com', 'ac', 'gov', 'net', 'org', 'edu']
   if (domainParts.length && secondaryTLDs.includes(domainParts[domainParts.length - 1])) {
-    topLevelDomain = `${domainParts.pop()}.${topLevelDomain}`;
+    topLevelDomain = `${domainParts.pop()}.${topLevelDomain}`
   }
 
-  const host = domainParts.pop();
+  const host = domainParts.pop()
 
   if (domainParts.length) {
-    subdomain = domainParts.join('.');
+    subdomain = domainParts.join('.')
   }
 
-  let siteName;
+  let siteName
   if (subdomain === 'www') {
-    siteName = host;
+    siteName = host
   } else {
-    siteName = subdomain.length > 0 ? `${subdomain}.${host}` : host;
+    siteName = subdomain.length > 0 ? `${subdomain}.${host}` : host
   }
 
   return {
@@ -645,6 +676,6 @@ function parseUrl(inputUrl) {
     host,
     tld: topLevelDomain,
     parentDomain: host ? `${host}.${topLevelDomain}` : '',
-    siteName,
-  };
+    siteName
+  }
 }
