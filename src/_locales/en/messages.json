@@ -12,7 +12,10 @@
     "message": "Preferences"
   },
   "MENU_AUTO_GROUP": {
-    "message": "Enable Tably"
+    "message": "Automatically Group Tabs"
+  },
+  "MENU_GROUP_NOW": {
+    "message": "Group Tabs Now"
   },
   "MENU_AUTO_CLOSE": {
     "message": "Close Single-Tab Groups"
