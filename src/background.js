@@ -28,60 +28,59 @@ async function groupAllTabsByHostname () {
 
   console.log(allTabs)
 
-  if (!allTabs) return;
+  if (!allTabs) return
 
-  const windows = {};
+  const windows = {}
 
   allTabs.forEach(tab => {
     if (!windows[tab.windowId]) {
-      windows[tab.windowId] = [];
+      windows[tab.windowId] = []
     }
-    windows[tab.windowId].push(tab);
-  });
+    windows[tab.windowId].push(tab)
+  })
 
   for (const windowId in windows) {
-    const windowTabs = windows[windowId];
-    const hostnames = findAllHostnamesInTabs(windowTabs);
-  
+    const windowTabs = windows[windowId]
+    const hostnames = findAllHostnamesInTabs(windowTabs)
+
     for (const hostname of hostnames) {
-      const tabsWithThisHostname = allTabsWithSameHostname(windowTabs, hostname);
-  
-      if (!tabsWithThisHostname) continue;
-  
-      const tabsToGroup = tabsWithThisHostname.map(tab => tab.id);
-      let groupId = tabsWithThisHostname[0].groupId;
-  
+      const tabsWithThisHostname = allTabsWithSameHostname(windowTabs, hostname)
+
+      if (!tabsWithThisHostname) continue
+
+      const tabsToGroup = tabsWithThisHostname.map(tab => tab.id)
+      let groupId = tabsWithThisHostname[0].groupId
+
       if (groupId === chrome.tabGroups.TAB_GROUP_ID_NONE) {
         groupId = await ch.tabsGroup({
           tabIds: tabsToGroup,
           createProperties: { windowId: parseInt(windowId) }
         }).catch(error => {
-          console.error(error);
-          return -1;
-        });
-  
-        if (groupId === -1) continue;
-  
-        const siteName = parseUrl(tabsWithThisHostname[0].pendingUrl || tabsWithThisHostname[0].url).siteName || 'Untitled';
-        const siteFaviconUrl = faviconURL(tabsWithThisHostname[0].pendingUrl || tabsWithThisHostname[0].url);
-        const groupColor = await getFaviconColor(siteFaviconUrl);
-  
+          console.error(error)
+          return -1
+        })
+
+        if (groupId === -1) continue
+
+        const siteName = parseUrl(tabsWithThisHostname[0].pendingUrl || tabsWithThisHostname[0].url).siteName || 'Untitled'
+        const siteFaviconUrl = faviconURL(tabsWithThisHostname[0].pendingUrl || tabsWithThisHostname[0].url)
+        const groupColor = await getFaviconColor(siteFaviconUrl)
+
         try {
-          await ch.tabGroupsUpdate(groupId, { title: siteName, color: groupColor });
+          await ch.tabGroupsUpdate(groupId, { title: siteName, color: groupColor })
         } catch (error) {
-          console.error(error);
+          console.error(error)
         }
       } else {
         try {
-          await ch.tabsGroup({ tabIds: tabsToGroup, groupId });
+          await ch.tabsGroup({ tabIds: tabsToGroup, groupId })
         } catch (error) {
-          console.error(error);
+          console.error(error)
         }
       }
     }
   }
 }
-
 
 async function onTabRemoved () {
   if (!await extensionIsEnabled()) return
@@ -265,25 +264,23 @@ function allTabsWithSameHostname (allTabs, targetTabHostName) {
   })
 }
 
-
-async function getAllValidTabs(onlyCurrentWindow = true) {
-  const queryInfo = onlyCurrentWindow ? { currentWindow: true } : {};
+async function getAllValidTabs (onlyCurrentWindow = true) {
+  const queryInfo = onlyCurrentWindow ? { currentWindow: true } : {}
 
   const allTabs = await ch.tabsQuery(queryInfo).catch(error => {
-    console.error(error);
-    return [];
-  });
+    console.error(error)
+    return []
+  })
 
-  if (!allTabs) return null;
+  if (!allTabs) return null
 
   const validTabs = allTabs.filter(tab => {
-    const tabUrl = tab.pendingUrl || tab.url || '';
-    return !isExcluded(tabUrl);
-  });
+    const tabUrl = tab.pendingUrl || tab.url || ''
+    return !isExcluded(tabUrl)
+  })
 
-  return validTabs.length ? validTabs : null;
+  return validTabs.length ? validTabs : null
 }
-
 
 function findAllHostnamesInTabs (allTabs) {
   return [...new Set(
@@ -454,7 +451,7 @@ async function onMessageReceived (message, sender, sendResponse) {
   try {
     if (message.msg === 'preference_updated') {
       sendResponse()
-  
+
       if (message.id === 'enabled' && message.value === true) {
         await groupAllTabsByHostname()
       }
