@@ -13,6 +13,10 @@
     "48": "images/icon48.png",
     "128": "images/icon128.png"
   },
+  "action": {
+    "default_title": "__MSG_EXT_NAME_SHORT__",
+    "default_popup": "popup/popup.html"
+  },
   "background": {
     "service_worker": "background.js",
     "type": "module"

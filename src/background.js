@@ -3,191 +3,17 @@
 /* global chrome, createImageBitmap, OffscreenCanvas */
 
 import * as ch from './chrome/promisify.js'
+import * as preferences from './preferences.js'
 
 chrome.runtime.onInstalled.addListener(onInstalled)
-chrome.runtime.onStartup.addListener(onStartup)
 chrome.tabs.onUpdated.addListener(onTabUpdated)
 chrome.tabs.onRemoved.addListener(onTabRemoved)
 chrome.tabs.onActivated.addListener(onTabActivated)
-chrome.contextMenus.onClicked.addListener(onMenuClicked)
-
-const preferenceDefaults = {
-  auto_close_groups: {
-    title: chrome.i18n.getMessage('MENU_AUTO_CLOSE'),
-    value: true,
-    type: 'checkbox'
-  },
-  auto_collapse_groups: {
-    title: chrome.i18n.getMessage('MENU_AUTO_COLLAPSE'),
-    value: false,
-    type: 'checkbox'
-  }
-}
+chrome.runtime.onMessage.addListener(onMessageReceived)
 
 async function onInstalled (info) {
-  await setupContextMenu()
-  await loadPreferences()
-
   if (info.reason === 'install') {
     await groupAllTabsByHostname()
-  }
-}
-
-async function onStartup () {
-  await loadPreferences()
-}
-
-async function setupContextMenu () {
-  const menuItemsFromPreferences = buildMenuStructureFromPreferences(preferenceDefaults)
-
-  const menuItems = [
-    {
-      title: chrome.i18n.getMessage('MENU_AUTO_GROUP'),
-      contexts: ['action'],
-      id: 'toggle_extension',
-      type: 'checkbox'
-    },
-    {
-      contexts: ['action'],
-      id: 'separator_1',
-      type: 'separator'
-    },
-    ...menuItemsFromPreferences,
-    {
-      contexts: ['action'],
-      id: 'separator_2',
-      type: 'separator'
-    },
-    {
-      title: chrome.i18n.getMessage('MENU_RATE'),
-      contexts: ['action'],
-      id: 'rate_extension',
-      type: 'normal'
-    },
-    {
-      title: chrome.i18n.getMessage('MENU_DONATE'),
-      contexts: ['action'],
-      id: 'donate',
-      type: 'normal'
-    }
-  ]
-
-  try {
-    await ch.menusRemoveAll()
-  } catch (error) {
-    console.error(error)
-  }
-
-  for (const item of menuItems) {
-    try {
-      await ch.menusCreate(item)
-    } catch (error) {
-      console.error(error)
-    }
-  }
-}
-
-function buildMenuStructureFromPreferences (preferences) {
-  const menuStructure = [
-    {
-      title: chrome.i18n.getMessage('MENU_PREFERENCES'),
-      contexts: ['action'],
-      id: 'preferences',
-      type: 'normal'
-    }
-  ]
-
-  for (const key in preferences) {
-    const menuItem = getMenuItem(preferences[key], key)
-    menuStructure.push(...menuItem)
-  }
-
-  return menuStructure
-}
-
-function getMenuItem (preference, key) {
-  const temp = []
-
-  if (preference.type === 'checkbox') {
-    const menuItem = {
-      title: preference.title,
-      contexts: ['action'],
-      id: key,
-      type: 'checkbox',
-      parentId: 'preferences'
-    }
-
-    temp.push(menuItem)
-  }
-
-  if (preference.type === 'radio') {
-    const parentItem = {
-      title: preference.title,
-      contexts: ['action'],
-      id: key,
-      type: 'normal',
-      parentId: 'preferences'
-    }
-
-    temp.push(parentItem)
-
-    for (const option of preference.options) {
-      const childItem = {
-        title: option,
-        contexts: ['action'],
-        id: `${key}.${option}`,
-        type: 'radio',
-        parentId: key
-      }
-
-      temp.push(childItem)
-    }
-  }
-
-  return temp
-}
-
-async function loadPreferences () {
-  const ePrefResult = await ch.storageLocalGet({ enabled: true }).catch(error => {
-    console.error(error)
-    return { enabled: true }
-  })
-
-  const enabledPreference = ePrefResult.enabled
-
-  try {
-    await ch.menusUpdate('toggle_extension', { checked: enabledPreference })
-  } catch (error) {
-    console.error(error)
-  }
-
-  const prefResult = await ch.storageLocalGet({ preferences: preferenceDefaults }).catch(error => {
-    console.error(error)
-    return { preferences: preferenceDefaults }
-  })
-
-  let userPreferences = prefResult.preferences
-
-  // Prune any changed settings
-  userPreferences = Object.fromEntries(
-    Object.entries(userPreferences).filter(
-      ([key]) => key in preferenceDefaults
-    )
-  )
-
-  try {
-    // Save pruned preferences back to storage
-    await ch.storageLocalSet({ preferences: userPreferences })
-
-    for (const [preferenceName, preferenceObj] of Object.entries(userPreferences)) {
-      if (preferenceObj.type === 'radio') {
-        await ch.menusUpdate(`${preferenceName}.${preferenceObj.value}`, { checked: true })
-      } else if (preferenceObj.type === 'checkbox') {
-        await ch.menusUpdate(preferenceName, { checked: preferenceObj.value })
-      }
-    }
-  } catch (error) {
-    console.error(error)
   }
 }
 
@@ -248,75 +74,10 @@ async function groupAllTabsByHostname () {
   }
 }
 
-async function onMenuClicked (info, tab) {
-  const { menuItemId, parentMenuItemId, checked } = info
-
-  if (preferenceDefaults[menuItemId] || preferenceDefaults[parentMenuItemId ?? '']) {
-    const prefResult = await ch.storageLocalGet({ preferences: preferenceDefaults }).catch(error => {
-      console.error(error)
-      return { preferences: preferenceDefaults }
-    })
-
-    const userPreferences = prefResult.preferences
-
-    const preference = userPreferences[menuItemId]
-    const parentPreference = userPreferences[parentMenuItemId ?? '']
-
-    if (parentPreference && parentPreference.type === 'radio') {
-      parentPreference.value = menuItemId.split('.')[1]
-    } else if (preference.type === 'checkbox') {
-      preference.value = checked
-    }
-
-    try {
-      await ch.storageLocalSet({ preferences: userPreferences })
-    } catch (error) {
-      console.error(error)
-    }
-  } else if (menuItemId === 'rate_extension' || menuItemId === 'donate') {
-    try {
-      await openTab(menuItemId)
-    } catch (error) {
-      console.error(error)
-    }
-  } else if (menuItemId === 'toggle_extension') {
-    try {
-      if (checked) {
-        await groupAllTabsByHostname()
-      }
-
-      await ch.storageLocalSet({ enabled: checked })
-    } catch (error) {
-      console.error(error)
-    }
-  }
-}
-
-async function openTab (type) {
-  const urls = {
-    rate_extension: `https://chrome.google.com/webstore/detail/${chrome.runtime.id}`,
-    donate: 'https://www.buymeacoffee.com/mrviolets'
-  }
-
-  const url = urls[type]
-  if (url) {
-    try {
-      await ch.tabsCreate({ url })
-    } catch (error) {
-      console.error(error)
-    }
-  }
-}
-
 async function onTabRemoved () {
   if (!await extensionIsEnabled()) return
 
-  const prefResult = await ch.storageLocalGet({ preferences: preferenceDefaults }).catch(error => {
-    console.error(error)
-    return { preferences: preferenceDefaults }
-  })
-
-  const userPreferences = prefResult.preferences
+  const userPreferences = await preferences.get()
 
   if (userPreferences.auto_close_groups.value === false) return
 
@@ -343,12 +104,7 @@ async function onTabRemoved () {
 async function onTabActivated (info) {
   if (!await extensionIsEnabled()) return
 
-  const prefResult = await ch.storageLocalGet({ preferences: preferenceDefaults }).catch(error => {
-    console.error(error)
-    return { preferences: preferenceDefaults }
-  })
-
-  const userPreferences = prefResult.preferences
+  const userPreferences = await preferences.get()
 
   if (userPreferences.auto_collapse_groups.value === false) return
 
@@ -464,12 +220,8 @@ async function collapseUnusedGroups (tabId) {
 
 async function extensionIsEnabled () {
   try {
-    const ePrefResult = await ch.storageLocalGet({ enabled: true }).catch(error => {
-      console.error(error)
-      return { enabled: true }
-    })
-
-    return ePrefResult.enabled
+    const userPreferences = await preferences.get()
+    return userPreferences.enabled.value;
   } catch (error) {
     console.error(error)
     return true
@@ -682,5 +434,15 @@ function parseUrl (inputUrl) {
     tld: topLevelDomain,
     parentDomain: host ? `${host}.${topLevelDomain}` : '',
     siteName
+  }
+}
+
+async function onMessageReceived(message, sender, sendResponse) {
+  if (message.msg === 'preference_updated') {
+    sendResponse()
+
+    if (message.id === 'enabled' && message.value === true) {
+      await groupAllTabsByHostname()
+    }
   }
 }
