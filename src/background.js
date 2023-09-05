@@ -10,6 +10,7 @@ chrome.tabs.onUpdated.addListener(onTabUpdated)
 chrome.tabs.onRemoved.addListener(onTabRemoved)
 chrome.tabs.onActivated.addListener(onTabActivated)
 chrome.runtime.onMessage.addListener(onMessageReceived)
+chrome.commands.onCommand.addListener(onCommandReceived)
 
 async function onInstalled (info) {
   if (info.reason === 'install') {
@@ -462,5 +463,11 @@ async function onMessageReceived (message, sender, sendResponse) {
     }
   } catch (error) {
     console.error(error)
+  }
+}
+
+async function onCommandReceived (command) {
+  if (command === 'group_all') {
+    await groupAllTabsByHostname()
   }
 }
