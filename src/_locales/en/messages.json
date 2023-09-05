@@ -1,18 +1,21 @@
 {
   "EXT_NAME": {
-    "message": "Tably - Group Tabs Automatically"
+    "message": "Marble - Group Tabs Automatically"
   },
   "EXT_NAME_SHORT": {
-    "message": "Tably"
+    "message": "Marble"
   },
   "EXT_DESCRIPTION": {
-    "message": "Tably keeps your tabs organized by automatically grouping them by domain."
+    "message": "Marble keeps your tabs organized by automatically grouping them by domain."
   },
   "MENU_PREFERENCES": {
     "message": "Preferences"
   },
   "MENU_AUTO_GROUP": {
-    "message": "Enable Tably"
+    "message": "Automatically Group Tabs"
+  },
+  "MENU_GROUP_NOW": {
+    "message": "Group Tabs Now"
   },
   "MENU_AUTO_CLOSE": {
     "message": "Close Single-Tab Groups"

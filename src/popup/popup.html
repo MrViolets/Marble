@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="popup.css" />
+    <script type="module" src="popup.js"></script>
+  </head>
+  <body>
+    <header class="header">
+      <div class="left-detail">
+        <div class="label-large" data-localize="EXT_NAME_SHORT"></div>
+      </div>
+    </header>
+    <div class="group">
+      <label for="enabled" class="item nav-index">
+        <div class="left-detail">
+          <div class="label" data-localize="MENU_AUTO_GROUP"></div>
+        </div>
+        <div class="right-detail">
+          <label class="switch">
+            <input type="checkbox" id="enabled" />
+            <span class="track no-transition"></span>
+          </label>
+        </div>
+      </label>
+    </div>
+    <div class="group">
+      <div id="group_now" class="item nav-index">
+        <div class="left-detail">
+          <div class="label" data-localize="MENU_GROUP_NOW"></div>
+        </div>
+      </div>
+    </div>
+    <div class="group">
+      <label for="auto_close_groups" class="item nav-index">
+        <div class="left-detail">
+          <div class="label" data-localize="MENU_AUTO_CLOSE"></div>
+        </div>
+        <div class="right-detail">
+          <label class="switch">
+            <input type="checkbox" id="auto_close_groups" />
+            <span class="track no-transition"></span>
+          </label>
+        </div>
+      </label>
+      <label for="auto_collapse_groups" class="item nav-index">
+        <div class="left-detail">
+          <div class="label" data-localize="MENU_AUTO_COLLAPSE"></div>
+        </div>
+        <div class="right-detail">
+          <label class="switch">
+            <input type="checkbox" id="auto_collapse_groups" />
+            <span class="track no-transition"></span>
+          </label>
+        </div>
+      </label>
+    </div>
+      <div class="group">
+        <div id="rate" class="item nav-index">
+            <div class="left-detail">
+              <div class="label" data-localize="MENU_RATE"></div>
+            </div>
+            <div class="right-detail">
+              <div class="external-link"></div>
+            </div>
+        </div>
+        <div id="donate" class="item nav-index">
+          <div class="left-detail">
+            <div class="label" data-localize="MENU_DONATE"></div>
+          </div>
+          <div class="right-detail">
+            <div class="external-link"></div>
+          </div>
+      </div>
+      </div>
+    </div>
+  </body>
+</html>

@@ -5,7 +5,7 @@
   "manifest_version": 3,
    "minimum_chrome_version": "89",
   "default_locale": "en",
-  "permissions": ["tabs", "tabGroups", "favicon", "storage", "contextMenus"],
+  "permissions": ["tabs", "tabGroups", "favicon", "storage", "commands"],
   "icons": {
     "16": "images/icon16.png",
     "24": "images/icon24.png",
@@ -13,8 +13,21 @@
     "48": "images/icon48.png",
     "128": "images/icon128.png"
   },
+  "action": {
+    "default_title": "__MSG_EXT_NAME_SHORT__",
+    "default_popup": "popup/popup.html"
+  },
   "background": {
     "service_worker": "background.js",
     "type": "module"
+  },
+  "commands": {
+    "group_all": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+L",
+        "mac": "Command+Shift+L"
+      },
+      "description": "Groups all tabs in all windows by domain"
+    }
   }
 }
