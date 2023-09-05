@@ -1,6 +1,6 @@
-# Tably
+# Marble
 
-Tably is an automatic tab grouper for Google Chrome.
+Like marbles, tabs are unique on their own but are better in collections. This Google Chrome extension will automatically group your tabs by domain.
 
 ## Install
 
@@ -21,4 +21,4 @@ Once installed, your tabs will be grouped according to the web domain/hostname. 
 
 ## License
 
-Tably is licensed under the GNU General Public License version 3.
+Marble is licensed under the GNU General Public License version 3.
