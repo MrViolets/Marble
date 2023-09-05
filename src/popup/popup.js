@@ -104,25 +104,29 @@ function registerListeners () {
 }
 
 async function onCheckBoxChanged (e) {
+  await updateUserPreference(e, 'checked', !e.target.checked)
+}
+
+async function updateUserPreference (e, valueKey, backupValue) {
   const userPreferences = await preferences.get()
   const preference = userPreferences[e.target.id]
 
   if (!preference) return
 
-  preference.value = e.target.checked
+  preference.value = e.target[valueKey]
 
   try {
     await ch.storageLocalSet({ preferences: userPreferences })
   } catch (error) {
     console.error(error)
-    e.target.checked = !e.target.checked
+    e.target[valueKey] = backupValue
+    return
   }
 
   try {
     await ch.sendMessage({ msg: 'preference_updated', id: e.target.id, value: preference.value })
   } catch (error) {
     console.error(error)
-    e.target.checked = !e.target.checked
   }
 }
 
