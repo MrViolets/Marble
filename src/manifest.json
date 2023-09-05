@@ -5,7 +5,7 @@
   "manifest_version": 3,
    "minimum_chrome_version": "89",
   "default_locale": "en",
-  "permissions": ["tabs", "tabGroups", "favicon", "storage", "contextMenus"],
+  "permissions": ["tabs", "tabGroups", "favicon", "storage", "commands"],
   "icons": {
     "16": "images/icon16.png",
     "24": "images/icon24.png",
