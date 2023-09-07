@@ -381,8 +381,6 @@ async function getFaviconColor (faviconUrl) {
       }
     }
 
-    console.log(colorHistogram)
-
     return closestColor.name
   } catch (error) {
     console.error(error)
