@@ -27,8 +27,6 @@ async function onTabUpdated (tabId, changes, tab) {
 async function groupAllTabsByHostname () {
   const allTabs = await getAllValidTabs(false)
 
-  console.log(allTabs)
-
   if (!allTabs) return
 
   const windows = {}
@@ -47,7 +45,7 @@ async function groupAllTabsByHostname () {
     for (const hostname of hostnames) {
       const tabsWithThisHostname = allTabsWithSameHostname(windowTabs, hostname)
 
-      if (!tabsWithThisHostname) continue
+      if (!tabsWithThisHostname || tabsWithThisHostname.length === 1) continue
 
       const tabsToGroup = tabsWithThisHostname.map(tab => tab.id)
       let groupId = tabsWithThisHostname[0].groupId
