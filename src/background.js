@@ -27,13 +27,11 @@ async function onTabUpdated (tabId, changes, tab) {
 async function groupAllTabsByHostname () {
   const allTabs = await getAllValidTabs(false)
 
-  console.log(allTabs)
-
   if (!allTabs) return
 
   const windows = {}
 
-  allTabs.forEach(tab => {
+  allTabs.forEach((tab) => {
     if (!windows[tab.windowId]) {
       windows[tab.windowId] = []
     }
@@ -47,19 +45,21 @@ async function groupAllTabsByHostname () {
     for (const hostname of hostnames) {
       const tabsWithThisHostname = allTabsWithSameHostname(windowTabs, hostname)
 
-      if (!tabsWithThisHostname) continue
+      if (!tabsWithThisHostname || tabsWithThisHostname.length === 1) continue
 
-      const tabsToGroup = tabsWithThisHostname.map(tab => tab.id)
+      const tabsToGroup = tabsWithThisHostname.map((tab) => tab.id)
       let groupId = tabsWithThisHostname[0].groupId
 
       if (groupId === chrome.tabGroups.TAB_GROUP_ID_NONE) {
-        groupId = await ch.tabsGroup({
-          tabIds: tabsToGroup,
-          createProperties: { windowId: parseInt(windowId) }
-        }).catch(error => {
-          console.error(error)
-          return -1
-        })
+        groupId = await ch
+          .tabsGroup({
+            tabIds: tabsToGroup,
+            createProperties: { windowId: parseInt(windowId) }
+          })
+          .catch((error) => {
+            console.error(error)
+            return -1
+          })
 
         if (groupId === -1) continue
 
@@ -84,8 +84,6 @@ async function groupAllTabsByHostname () {
 }
 
 async function onTabRemoved () {
-  if (!await extensionIsEnabled()) return
-
   const userPreferences = await preferences.get()
 
   if (userPreferences.auto_close_groups.value === false) return
@@ -99,7 +97,7 @@ async function onTabRemoved () {
   const singleTabGroupIds = singleTabGroups.map(([groupId]) => parseInt(groupId))
 
   for (const groupId of singleTabGroupIds) {
-    const tabToUngroup = allTabs.find(tab => tab.groupId === groupId)
+    const tabToUngroup = allTabs.find((tab) => tab.groupId === groupId)
     if (tabToUngroup) {
       try {
         await ch.tabsUngroup(tabToUngroup.id)
@@ -111,7 +109,7 @@ async function onTabRemoved () {
 }
 
 async function onTabActivated (info) {
-  if (!await extensionIsEnabled()) return
+  if (!(await extensionIsEnabled())) return
 
   const userPreferences = await preferences.get()
 
@@ -121,9 +119,9 @@ async function onTabActivated (info) {
 }
 
 async function addTabToGroup (tabId) {
-  if (!await extensionIsEnabled()) return
+  if (!(await extensionIsEnabled())) return
 
-  const targetTab = await ch.tabsGet(tabId).catch(error => {
+  const targetTab = await ch.tabsGet(tabId).catch((error) => {
     console.error(error)
     return null
   })
@@ -166,9 +164,9 @@ async function addTabToGroup (tabId) {
     const matchingTabs = allTabsWithSameHostname(allTabs, parsedUrl.domain)
 
     if (matchingTabs.length > 1) {
-      const matchingTabsIds = matchingTabs.map(t => t.id)
+      const matchingTabsIds = matchingTabs.map((t) => t.id)
 
-      const newGroupId = await ch.tabsGroup({ tabIds: matchingTabsIds }).catch(error => {
+      const newGroupId = await ch.tabsGroup({ tabIds: matchingTabsIds }).catch((error) => {
         console.error(error)
         return -1
       })
@@ -189,14 +187,14 @@ async function addTabToGroup (tabId) {
 }
 
 async function collapseUnusedGroups (tabId) {
-  const allTabs = await ch.tabsQuery({ currentWindow: true }).catch(error => {
+  const allTabs = await ch.tabsQuery({ currentWindow: true }).catch((error) => {
     console.error(error)
     return []
   })
 
   if (!allTabs) return
 
-  const tabActivated = allTabs.find(tab => tab.id === tabId)
+  const tabActivated = allTabs.find((tab) => tab.id === tabId)
 
   if (!tabActivated) return
 
@@ -204,9 +202,7 @@ async function collapseUnusedGroups (tabId) {
 
   if (activeTabGroupId === undefined) return
 
-  const otherGroupIds = allTabs
-    .filter(tab => tab.groupId !== activeTabGroupId && tab.groupId !== chrome.tabGroups.TAB_GROUP_ID_NONE)
-    .map(tab => tab.groupId)
+  const otherGroupIds = allTabs.filter((tab) => tab.groupId !== activeTabGroupId && tab.groupId !== chrome.tabGroups.TAB_GROUP_ID_NONE).map((tab) => tab.groupId)
   const uniqueOtherGroupIds = [...new Set(otherGroupIds)]
 
   const MAX_RETRIES = 5
@@ -221,7 +217,7 @@ async function collapseUnusedGroups (tabId) {
         break
       } catch (error) {
         retries++
-        await new Promise(resolve => setTimeout(resolve, RETRY_DELAY))
+        await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY))
       }
     }
   }
@@ -238,11 +234,11 @@ async function extensionIsEnabled () {
 }
 
 function findTabsInGroup (allTabs, targetTab) {
-  return allTabs.filter(t => t.groupId === targetTab.groupId && t.id !== targetTab.id)
+  return allTabs.filter((t) => t.groupId === targetTab.groupId && t.id !== targetTab.id)
 }
 
 function allTabsContainsHostname (tabsInGroup, targetTabHostName) {
-  return tabsInGroup.some(t => parseUrl(t.pendingUrl || t.url || '').domain === targetTabHostName)
+  return tabsInGroup.some((t) => parseUrl(t.pendingUrl || t.url || '').domain === targetTabHostName)
 }
 
 function findTargetGroupId (allTabs, targetTab, targetTabHostName) {
@@ -259,7 +255,7 @@ function findTargetGroupId (allTabs, targetTab, targetTabHostName) {
 }
 
 function allTabsWithSameHostname (allTabs, targetTabHostName) {
-  return allTabs.filter(tab => {
+  return allTabs.filter((tab) => {
     const tabHostname = parseUrl(tab.pendingUrl || tab.url).domain
     return tabHostname === targetTabHostName
   })
@@ -268,14 +264,14 @@ function allTabsWithSameHostname (allTabs, targetTabHostName) {
 async function getAllValidTabs (onlyCurrentWindow = true) {
   const queryInfo = onlyCurrentWindow ? { currentWindow: true } : {}
 
-  const allTabs = await ch.tabsQuery(queryInfo).catch(error => {
+  const allTabs = await ch.tabsQuery(queryInfo).catch((error) => {
     console.error(error)
     return []
   })
 
   if (!allTabs) return null
 
-  const validTabs = allTabs.filter(tab => {
+  const validTabs = allTabs.filter((tab) => {
     const tabUrl = tab.pendingUrl || tab.url || ''
     return !isExcluded(tabUrl)
   })
@@ -284,11 +280,7 @@ async function getAllValidTabs (onlyCurrentWindow = true) {
 }
 
 function findAllHostnamesInTabs (allTabs) {
-  return [...new Set(
-    allTabs
-      .map(tab => parseUrl(tab.pendingUrl || tab.url || '').domain)
-      .filter(Boolean)
-  )]
+  return [...new Set(allTabs.map((tab) => parseUrl(tab.pendingUrl || tab.url || '').domain).filter(Boolean))]
 }
 
 function getTabGroupCounts (allTabs) {
@@ -312,17 +304,9 @@ function faviconURL (u) {
 }
 
 function isExcluded (url) {
-  const excludedUrls = [
-    'chrome://',
-    'chrome-extension://',
-    'edge://',
-    'extension://',
-    'brave://',
-    'opera://',
-    'vivaldi://'
-  ]
+  const excludedUrls = ['chrome://', 'chrome-extension://', 'edge://', 'extension://', 'brave://', 'opera://', 'vivaldi://']
 
-  return excludedUrls.some(excluded => url.startsWith(excluded))
+  return excludedUrls.some((excluded) => url.startsWith(excluded))
 }
 
 function calculateDistance (color1, color2) {
@@ -359,39 +343,38 @@ async function getFaviconColor (faviconUrl) {
     ctx.drawImage(imageBitmap, 0, 0)
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height).data
 
-    let rTotal = 0; let gTotal = 0; let bTotal = 0
-    let pixelCount = 0
+    const colorHistogram = {}
 
     for (let i = 0; i < imageData.length; i += 4) {
       if (!isIgnoredPixel(imageData[i], imageData[i + 1], imageData[i + 2], imageData[i + 3])) {
-        rTotal += imageData[i]
-        gTotal += imageData[i + 1]
-        bTotal += imageData[i + 2]
-        pixelCount++
+        const quantizedColor = quantize(imageData[i], imageData[i + 1], imageData[i + 2])
+        const colorKey = `${quantizedColor.r}-${quantizedColor.g}-${quantizedColor.b}`
+        colorHistogram[colorKey] = (colorHistogram[colorKey] || 0) + 1
       }
     }
 
-    if (pixelCount === 0) return 'grey'
-
-    const isGray = (r, g, b, threshold = 15) => {
-      return Math.abs(r - g) <= threshold &&
-               Math.abs(r - b) <= threshold &&
-               Math.abs(g - b) <= threshold
-    }
-
-    const rAvg = Math.round(rTotal / pixelCount)
-    const gAvg = Math.round(gTotal / pixelCount)
-    const bAvg = Math.round(bTotal / pixelCount)
-
-    if (isGray(rAvg, gAvg, bAvg)) {
-      return 'grey'
-    }
+    const dominantColorKey = Object.keys(colorHistogram).reduce((a, b) => (colorHistogram[a] > colorHistogram[b] ? a : b))
+    const dominantColorParts = dominantColorKey.split('-').map((value) => parseInt(value, 10))
 
     let closestColor = colors[0]
-    let minDistance = calculateDistance({ r: rAvg, g: gAvg, b: bAvg }, closestColor.rgb)
+    let minDistance = calculateDistance(
+      {
+        r: dominantColorParts[0],
+        g: dominantColorParts[1],
+        b: dominantColorParts[2]
+      },
+      closestColor.rgb
+    )
 
     for (let i = 1; i < colors.length; i++) {
-      const distance = calculateDistance({ r: rAvg, g: gAvg, b: bAvg }, colors[i].rgb)
+      const distance = calculateDistance(
+        {
+          r: dominantColorParts[0],
+          g: dominantColorParts[1],
+          b: dominantColorParts[2]
+        },
+        colors[i].rgb
+      )
       if (distance < minDistance) {
         minDistance = distance
         closestColor = colors[i]
@@ -402,6 +385,14 @@ async function getFaviconColor (faviconUrl) {
   } catch (error) {
     console.error(error)
     return 'grey'
+  }
+}
+
+function quantize (r, g, b, granularity = 15) {
+  return {
+    r: Math.round(r / granularity) * granularity,
+    g: Math.round(g / granularity) * granularity,
+    b: Math.round(b / granularity) * granularity
   }
 }
 
