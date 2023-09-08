@@ -100,11 +100,16 @@ function registerListeners () {
   }
 
   onAll('input[type="checkbox"]', 'change', onCheckBoxChanged)
+  onAll('select', 'change', onSelectChanged)
   onAll('div.nav-index', 'click', onActionClicked)
 }
 
 async function onCheckBoxChanged (e) {
   await updateUserPreference(e, 'checked', !e.target.checked)
+}
+
+async function onSelectChanged (e) {
+  await updateUserPreference(e, 'value', e.target.value)
 }
 
 async function updateUserPreference (e, valueKey, backupValue) {
