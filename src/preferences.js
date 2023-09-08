@@ -25,7 +25,7 @@ export const defaults = {
     value: 'subdomain',
     type: 'radio',
     options: ['subdomain', 'domain']
-  },
+  }
 }
 
 export async function get () {
