@@ -14,7 +14,7 @@ chrome.commands.onCommand.addListener(onCommandReceived)
 
 async function onInstalled (info) {
   if (info.reason === 'install') {
-    await groupAllTabsByHostname()
+    await groupAllTabs()
   }
 }
 
@@ -24,7 +24,7 @@ async function onTabUpdated (tabId, changes, tab) {
   }
 }
 
-async function groupAllTabsByHostname () {
+async function groupAllTabs () {
   const allTabs = await getAllValidTabs(false)
 
   if (!allTabs) return
@@ -38,46 +38,62 @@ async function groupAllTabsByHostname () {
     windows[tab.windowId].push(tab)
   })
 
+  const userPreferences = await preferences.get()
+
+  let groupCriteria
+
+  if (userPreferences.group_by.value === 'subdomain') {
+    groupCriteria = 'domain'
+  } else {
+    groupCriteria = 'parentDomain'
+  }
+
+  await ungroupAllTabs(allTabs)
+
   for (const windowId in windows) {
     const windowTabs = windows[windowId]
-    const hostnames = findAllHostnamesInTabs(windowTabs)
+    const hostnames = findAllHostnamesInTabs(windowTabs, groupCriteria)
 
     for (const hostname of hostnames) {
-      const tabsWithThisHostname = allTabsWithSameHostname(windowTabs, hostname)
+      const tabsWithThisHostname = allTabsWithSameHostname(windowTabs, hostname, groupCriteria)
 
       if (!tabsWithThisHostname || tabsWithThisHostname.length === 1) continue
 
       const tabsToGroup = tabsWithThisHostname.map((tab) => tab.id)
-      let groupId = tabsWithThisHostname[0].groupId
 
-      if (groupId === chrome.tabGroups.TAB_GROUP_ID_NONE) {
-        groupId = await ch
-          .tabsGroup({
-            tabIds: tabsToGroup,
-            createProperties: { windowId: parseInt(windowId) }
-          })
-          .catch((error) => {
-            console.error(error)
-            return -1
-          })
-
-        if (groupId === -1) continue
-
-        const siteName = parseUrl(tabsWithThisHostname[0].pendingUrl || tabsWithThisHostname[0].url).siteName || 'Untitled'
-        const siteFaviconUrl = faviconURL(tabsWithThisHostname[0].pendingUrl || tabsWithThisHostname[0].url)
-        const groupColor = await getFaviconColor(siteFaviconUrl)
-
-        try {
-          await ch.tabGroupsUpdate(groupId, { title: siteName, color: groupColor })
-        } catch (error) {
+      const groupId = await ch
+        .tabsGroup({
+          tabIds: tabsToGroup,
+          createProperties: { windowId: parseInt(windowId) }
+        })
+        .catch((error) => {
           console.error(error)
-        }
-      } else {
-        try {
-          await ch.tabsGroup({ tabIds: tabsToGroup, groupId })
-        } catch (error) {
-          console.error(error)
-        }
+          return -1
+        })
+
+      if (groupId === -1) continue
+
+      const parsedUrl = parseUrl(tabsWithThisHostname[0].pendingUrl || tabsWithThisHostname[0].url)
+      const siteName = groupCriteria === 'domain' ? parsedUrl.siteName : parsedUrl.host || 'Untitled'
+      const siteFaviconUrl = faviconURL(tabsWithThisHostname[0].pendingUrl || tabsWithThisHostname[0].url)
+      const groupColor = await getFaviconColor(siteFaviconUrl)
+
+      try {
+        await ch.tabGroupsUpdate(groupId, { title: siteName, color: groupColor })
+      } catch (error) {
+        console.error(error)
+      }
+    }
+  }
+}
+
+async function ungroupAllTabs (tabs) {
+  for (const tab of tabs) {
+    if (tab.groupId !== chrome.tabGroups.TAB_GROUP_ID_NONE) {
+      try {
+        await ch.tabsUngroup(tab.id)
+      } catch (error) {
+        console.error(error)
       }
     }
   }
@@ -137,8 +153,18 @@ async function addTabToGroup (tabId) {
 
   if (!allTabs) return
 
+  const userPreferences = await preferences.get()
+
+  let groupCriteria
+
+  if (userPreferences.group_by.value === 'subdomain') {
+    groupCriteria = 'domain'
+  } else {
+    groupCriteria = 'parentDomain'
+  }
+
   const tabsInGroup = findTabsInGroup(allTabs, targetTab)
-  const groupHasSameHostname = allTabsContainsHostname(tabsInGroup, parsedUrl.domain)
+  const groupHasSameHostname = allTabsContainsHostname(tabsInGroup, parsedUrl[groupCriteria], groupCriteria)
 
   if (tabsInGroup.length && groupHasSameHostname && targetTab.groupId !== chrome.tabGroups.TAB_GROUP_ID_NONE) {
     // this means the tab doesn't need to move, don't do anything
@@ -152,7 +178,7 @@ async function addTabToGroup (tabId) {
     }
   }
 
-  const targetGroupId = findTargetGroupId(allTabs, targetTab, parsedUrl.domain)
+  const targetGroupId = findTargetGroupId(allTabs, targetTab, parsedUrl[groupCriteria], groupCriteria)
 
   if (targetGroupId !== null) {
     try {
@@ -161,7 +187,7 @@ async function addTabToGroup (tabId) {
       console.error(error)
     }
   } else {
-    const matchingTabs = allTabsWithSameHostname(allTabs, parsedUrl.domain)
+    const matchingTabs = allTabsWithSameHostname(allTabs, parsedUrl[groupCriteria], groupCriteria)
 
     if (matchingTabs.length > 1) {
       const matchingTabsIds = matchingTabs.map((t) => t.id)
@@ -173,7 +199,7 @@ async function addTabToGroup (tabId) {
 
       if (newGroupId === -1) return
 
-      const siteName = parsedUrl.siteName || 'Untitled'
+      const siteName = groupCriteria === 'domain' ? parsedUrl.siteName : parsedUrl.host || 'Untitled'
       const siteFaviconUrl = faviconURL(matchingTabs[0].pendingUrl || matchingTabs[0].url)
       const groupColor = await getFaviconColor(siteFaviconUrl)
 
@@ -237,15 +263,17 @@ function findTabsInGroup (allTabs, targetTab) {
   return allTabs.filter((t) => t.groupId === targetTab.groupId && t.id !== targetTab.id)
 }
 
-function allTabsContainsHostname (tabsInGroup, targetTabHostName) {
-  return tabsInGroup.some((t) => parseUrl(t.pendingUrl || t.url || '').domain === targetTabHostName)
+function allTabsContainsHostname (tabsInGroup, targetTabHostName, criteria) {
+  return tabsInGroup.some((t) => parseUrl(t.pendingUrl || t.url || '')[criteria] === targetTabHostName)
 }
 
-function findTargetGroupId (allTabs, targetTab, targetTabHostName) {
+function findTargetGroupId (allTabs, targetTab, targetTabHostName, criteria) {
   for (const tab of allTabs) {
     if (tab.id === targetTab.id) continue // Skip the target tab
 
-    const tabHostname = parseUrl(tab.pendingUrl || tab.url).domain
+    const parsedUrl = parseUrl(tab.pendingUrl || tab.url)
+
+    const tabHostname = parsedUrl[criteria]
     if (tabHostname === targetTabHostName && tab.groupId !== chrome.tabGroups.TAB_GROUP_ID_NONE) {
       return tab.groupId
     }
@@ -254,9 +282,10 @@ function findTargetGroupId (allTabs, targetTab, targetTabHostName) {
   return null
 }
 
-function allTabsWithSameHostname (allTabs, targetTabHostName) {
+function allTabsWithSameHostname (allTabs, targetTabHostName, criteria) {
   return allTabs.filter((tab) => {
-    const tabHostname = parseUrl(tab.pendingUrl || tab.url).domain
+    const parsedUrl = parseUrl(tab.pendingUrl || tab.url)
+    const tabHostname = parsedUrl[criteria]
     return tabHostname === targetTabHostName
   })
 }
@@ -279,8 +308,8 @@ async function getAllValidTabs (onlyCurrentWindow = true) {
   return validTabs.length ? validTabs : null
 }
 
-function findAllHostnamesInTabs (allTabs) {
-  return [...new Set(allTabs.map((tab) => parseUrl(tab.pendingUrl || tab.url || '').domain).filter(Boolean))]
+function findAllHostnamesInTabs (allTabs, criteria) {
+  return [...new Set(allTabs.map((tab) => parseUrl(tab.pendingUrl || tab.url || '')[criteria]).filter(Boolean))]
 }
 
 function getTabGroupCounts (allTabs) {
@@ -353,8 +382,20 @@ async function getFaviconColor (faviconUrl) {
       }
     }
 
+    const isGray = (r, g, b, threshold = 15) => {
+      return Math.abs(r - g) <= threshold && Math.abs(r - b) <= threshold && Math.abs(g - b) <= threshold
+    }
+
     const dominantColorKey = Object.keys(colorHistogram).reduce((a, b) => (colorHistogram[a] > colorHistogram[b] ? a : b))
     const dominantColorParts = dominantColorKey.split('-').map((value) => parseInt(value, 10))
+
+    const rAvg = dominantColorParts[0]
+    const gAvg = dominantColorParts[1]
+    const bAvg = dominantColorParts[2]
+
+    if (isGray(rAvg, gAvg, bAvg)) {
+      return 'grey'
+    }
 
     let closestColor = colors[0]
     let minDistance = calculateDistance(
@@ -444,13 +485,16 @@ async function onMessageReceived (message, sender, sendResponse) {
     if (message.msg === 'preference_updated') {
       sendResponse()
 
-      if (message.id === 'enabled' && message.value === true) {
-        await groupAllTabsByHostname()
+      const isEnabledToggled = message.id === 'enabled' && message.value === true
+      const isGroupByChanged = message.id === 'group_by' && (await extensionIsEnabled())
+
+      if (isEnabledToggled || isGroupByChanged) {
+        await groupAllTabs()
       }
     } else if (message.msg === 'group_now') {
       sendResponse()
 
-      await groupAllTabsByHostname()
+      await groupAllTabs()
     }
   } catch (error) {
     console.error(error)
@@ -459,6 +503,6 @@ async function onMessageReceived (message, sender, sendResponse) {
 
 async function onCommandReceived (command) {
   if (command === 'group_all') {
-    await groupAllTabsByHostname()
+    await groupAllTabs()
   }
 }

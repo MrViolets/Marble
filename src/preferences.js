@@ -19,6 +19,12 @@ export const defaults = {
     title: chrome.i18n.getMessage('MENU_AUTO_COLLAPSE'),
     value: false,
     type: 'checkbox'
+  },
+  group_by: {
+    title: chrome.i18n.getMessage('MENU_GROUP_BY'),
+    value: 'subdomain',
+    type: 'radio',
+    options: ['subdomain', 'domain']
   }
 }
 

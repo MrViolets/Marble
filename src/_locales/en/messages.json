@@ -23,6 +23,9 @@
   "MENU_AUTO_COLLAPSE": {
     "message": "Collapse Groups When Not in Use"
   },
+  "MENU_GROUP_BY": {
+    "message": "Group By"
+  },
   "MENU_RATE": {
     "message": "Rate Tably"
   },
