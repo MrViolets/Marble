@@ -48,7 +48,7 @@ async function groupAllTabs () {
     groupCriteria = 'parentDomain'
   }
 
-  await ungroupAllTabs(allTabs);
+  await ungroupAllTabs(allTabs)
 
   for (const windowId in windows) {
     const windowTabs = windows[windowId]
@@ -61,18 +61,20 @@ async function groupAllTabs () {
 
       const tabsToGroup = tabsWithThisHostname.map((tab) => tab.id)
 
-      const groupId = await ch.tabsGroup({
-        tabIds: tabsToGroup,
-        createProperties: { windowId: parseInt(windowId) }
-      }).catch((error) => {
-        console.error(error)
-        return -1
-      })
+      const groupId = await ch
+        .tabsGroup({
+          tabIds: tabsToGroup,
+          createProperties: { windowId: parseInt(windowId) }
+        })
+        .catch((error) => {
+          console.error(error)
+          return -1
+        })
 
       if (groupId === -1) continue
 
       const parsedUrl = parseUrl(tabsWithThisHostname[0].pendingUrl || tabsWithThisHostname[0].url)
-      const siteName = groupCriteria === 'domain' ? parsedUrl.siteName : (parsedUrl.host || 'Untitled');
+      const siteName = groupCriteria === 'domain' ? parsedUrl.siteName : parsedUrl.host || 'Untitled'
       const siteFaviconUrl = faviconURL(tabsWithThisHostname[0].pendingUrl || tabsWithThisHostname[0].url)
       const groupColor = await getFaviconColor(siteFaviconUrl)
 
@@ -85,15 +87,14 @@ async function groupAllTabs () {
   }
 }
 
-
-async function ungroupAllTabs(tabs) {
+async function ungroupAllTabs (tabs) {
   console.log('ungrouping???')
   for (const tab of tabs) {
     if (tab.groupId !== chrome.tabGroups.TAB_GROUP_ID_NONE) {
       try {
-        await ch.tabsUngroup(tab.id);
+        await ch.tabsUngroup(tab.id)
       } catch (error) {
-        console.error(error);
+        console.error(error)
       }
     }
   }
@@ -199,7 +200,7 @@ async function addTabToGroup (tabId) {
 
       if (newGroupId === -1) return
 
-      const siteName = groupCriteria === 'domain' ? parsedUrl.siteName : (parsedUrl.host || 'Untitled');
+      const siteName = groupCriteria === 'domain' ? parsedUrl.siteName : parsedUrl.host || 'Untitled'
       const siteFaviconUrl = faviconURL(matchingTabs[0].pendingUrl || matchingTabs[0].url)
       const groupColor = await getFaviconColor(siteFaviconUrl)
 
@@ -382,8 +383,20 @@ async function getFaviconColor (faviconUrl) {
       }
     }
 
+    const isGray = (r, g, b, threshold = 15) => {
+      return Math.abs(r - g) <= threshold && Math.abs(r - b) <= threshold && Math.abs(g - b) <= threshold
+    }
+
     const dominantColorKey = Object.keys(colorHistogram).reduce((a, b) => (colorHistogram[a] > colorHistogram[b] ? a : b))
     const dominantColorParts = dominantColorKey.split('-').map((value) => parseInt(value, 10))
+
+    const rAvg = dominantColorParts[0]
+    const gAvg = dominantColorParts[1]
+    const bAvg = dominantColorParts[2]
+
+    if (isGray(rAvg, gAvg, bAvg)) {
+      return 'grey'
+    }
 
     let closestColor = colors[0]
     let minDistance = calculateDistance(
@@ -474,7 +487,7 @@ async function onMessageReceived (message, sender, sendResponse) {
       sendResponse()
 
       const isEnabledToggled = message.id === 'enabled' && message.value === true
-      const isGroupByChanged = message.id === 'group_by' && await extensionIsEnabled()
+      const isGroupByChanged = message.id === 'group_by' && (await extensionIsEnabled())
 
       if (isEnabledToggled || isGroupByChanged) {
         await groupAllTabs()
