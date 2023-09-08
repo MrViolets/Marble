@@ -88,7 +88,6 @@ async function groupAllTabs () {
 }
 
 async function ungroupAllTabs (tabs) {
-  console.log('ungrouping???')
   for (const tab of tabs) {
     if (tab.groupId !== chrome.tabGroups.TAB_GROUP_ID_NONE) {
       try {
