@@ -78,10 +78,12 @@ async function groupAllTabs () {
       const siteFaviconUrl = faviconURL(tabsWithThisHostname[0].pendingUrl || tabsWithThisHostname[0].url)
       const groupColor = await getFaviconColor(siteFaviconUrl)
 
-      try {
-        await ch.tabGroupsUpdate(groupId, { title: siteName, color: groupColor })
-      } catch (error) {
-        console.error(error)
+      if (groupExists(groupId)) {
+        try {
+          await ch.tabGroupsUpdate(groupId, { title: siteName, color: groupColor })
+        } catch (error) {
+          console.error(error)
+        }
       }
     }
   }
@@ -180,7 +182,7 @@ async function addTabToGroup (tabId) {
 
   const targetGroupId = findTargetGroupId(allTabs, targetTab, parsedUrl[groupCriteria], groupCriteria)
 
-  if (targetGroupId !== null) {
+  if (targetGroupId !== null && groupExists(targetGroupId)) {
     try {
       await ch.tabsGroup({ tabIds: [targetTab.id], groupId: targetGroupId })
     } catch (error) {
@@ -203,10 +205,12 @@ async function addTabToGroup (tabId) {
       const siteFaviconUrl = faviconURL(matchingTabs[0].pendingUrl || matchingTabs[0].url)
       const groupColor = await getFaviconColor(siteFaviconUrl)
 
-      try {
-        await ch.tabGroupsUpdate(newGroupId, { title: siteName, color: groupColor })
-      } catch (error) {
-        console.error(error)
+      if (groupExists(newGroupId)) {
+        try {
+          await ch.tabGroupsUpdate(newGroupId, { title: siteName, color: groupColor })
+        } catch (error) {
+          console.error(error)
+        }
       }
     }
   }
@@ -239,7 +243,9 @@ async function collapseUnusedGroups (tabId) {
     let retries = 0
     while (retries < MAX_RETRIES) {
       try {
-        await ch.tabGroupsUpdate(groupId, { collapsed: true })
+        if (groupExists(groupId)) {
+          await ch.tabGroupsUpdate(groupId, { collapsed: true })
+        }
         break
       } catch (error) {
         retries++
@@ -504,5 +510,14 @@ async function onMessageReceived (message, sender, sendResponse) {
 async function onCommandReceived (command) {
   if (command === 'group_all') {
     await groupAllTabs()
+  }
+}
+
+async function groupExists(groupId) {
+  try {
+    const group = await ch.tabGroupsGet(groupId);
+    return group !== undefined && group !== null;
+  } catch (error) {
+    return false;
   }
 }

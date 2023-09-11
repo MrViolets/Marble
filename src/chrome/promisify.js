@@ -5,6 +5,7 @@
 export const storageLocalGet = promisifyChromeMethod(chrome.storage.local.get.bind(chrome.storage.local))
 export const storageLocalSet = promisifyChromeMethod(chrome.storage.local.set.bind(chrome.storage.local))
 export const tabGroupsUpdate = promisifyChromeMethod(chrome.tabGroups.update.bind(chrome.tabGroups))
+export const tabGroupsGet = promisifyChromeMethod(chrome.tabGroups.get.bind(chrome.tabGroups))
 export const tabsCreate = promisifyChromeMethod(chrome.tabs.create.bind(chrome.tabs))
 export const tabsUngroup = promisifyChromeMethod(chrome.tabs.ungroup.bind(chrome.tabs))
 export const tabsGroup = promisifyChromeMethod(chrome.tabs.group.bind(chrome.tabs))
