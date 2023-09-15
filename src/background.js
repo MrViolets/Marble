@@ -78,7 +78,7 @@ async function groupAllTabs () {
       const siteFaviconUrl = faviconURL(tabsWithThisHostname[0].pendingUrl || tabsWithThisHostname[0].url)
       const groupColor = await getFaviconColor(siteFaviconUrl)
 
-      if (groupExists(groupId)) {
+      if (await groupExists(groupId)) {
         try {
           await ch.tabGroupsUpdate(groupId, { title: siteName, color: groupColor })
         } catch (error) {
@@ -175,6 +175,10 @@ async function addTabToGroup (tabId) {
     // This means the tab needs to move
     try {
       await ch.tabsUngroup(targetTab.id)
+
+      if (userPreferences.auto_close_groups.value === true && await groupExists(targetTab.groupId)) {
+        await checkAndUngroupIfSingle(targetTab.groupId)
+      }
     } catch (error) {
       console.error(error)
     }
@@ -182,7 +186,7 @@ async function addTabToGroup (tabId) {
 
   const targetGroupId = findTargetGroupId(allTabs, targetTab, parsedUrl[groupCriteria], groupCriteria)
 
-  if (targetGroupId !== null && groupExists(targetGroupId)) {
+  if (targetGroupId !== null && await groupExists(targetGroupId)) {
     try {
       await ch.tabsGroup({ tabIds: [targetTab.id], groupId: targetGroupId })
     } catch (error) {
@@ -205,7 +209,7 @@ async function addTabToGroup (tabId) {
       const siteFaviconUrl = faviconURL(matchingTabs[0].pendingUrl || matchingTabs[0].url)
       const groupColor = await getFaviconColor(siteFaviconUrl)
 
-      if (groupExists(newGroupId)) {
+      if (await groupExists(newGroupId)) {
         try {
           await ch.tabGroupsUpdate(newGroupId, { title: siteName, color: groupColor })
         } catch (error) {
@@ -213,6 +217,17 @@ async function addTabToGroup (tabId) {
         }
       }
     }
+  }
+}
+
+async function checkAndUngroupIfSingle (tabGroupId) {
+  try {
+    const groupTabs = await ch.tabsQuery({ groupId: tabGroupId })
+    if (groupTabs.length <= 1) {
+      await ch.tabsUngroup(groupTabs[0].id)
+    }
+  } catch (error) {
+    console.error(error)
   }
 }
 
@@ -243,7 +258,7 @@ async function collapseUnusedGroups (tabId) {
     let retries = 0
     while (retries < MAX_RETRIES) {
       try {
-        if (groupExists(groupId)) {
+        if (await groupExists(groupId)) {
           await ch.tabGroupsUpdate(groupId, { collapsed: true })
         }
         break
@@ -513,11 +528,11 @@ async function onCommandReceived (command) {
   }
 }
 
-async function groupExists(groupId) {
+async function groupExists (groupId) {
   try {
-    const group = await ch.tabGroupsGet(groupId);
-    return group !== undefined && group !== null;
+    const group = await ch.tabGroupsGet(groupId)
+    return group !== undefined && group !== null
   } catch (error) {
-    return false;
+    return false
   }
 }
