@@ -7,10 +7,10 @@ import * as preferences from './preferences.js'
 
 chrome.runtime.onInstalled.addListener(onInstalled)
 chrome.tabs.onUpdated.addListener(onTabUpdated)
-chrome.tabs.onRemoved.addListener(onTabRemoved)
 chrome.tabs.onActivated.addListener(onTabActivated)
 chrome.runtime.onMessage.addListener(onMessageReceived)
 chrome.commands.onCommand.addListener(onCommandReceived)
+chrome.tabGroups.onUpdated.addListener(onTabGroupUpdated)
 
 async function onInstalled (info) {
   if (info.reason === 'install') {
@@ -94,31 +94,6 @@ async function ungroupAllTabs (tabs) {
     if (tab.groupId !== chrome.tabGroups.TAB_GROUP_ID_NONE) {
       try {
         await ch.tabsUngroup(tab.id)
-      } catch (error) {
-        console.error(error)
-      }
-    }
-  }
-}
-
-async function onTabRemoved () {
-  const userPreferences = await preferences.get()
-
-  if (userPreferences.auto_close_groups.value === false) return
-
-  const allTabs = await getAllValidTabs()
-
-  if (!allTabs) return
-
-  const groupCounts = getTabGroupCounts(allTabs)
-  const singleTabGroups = getSingleTabGroups(groupCounts)
-  const singleTabGroupIds = singleTabGroups.map(([groupId]) => parseInt(groupId))
-
-  for (const groupId of singleTabGroupIds) {
-    const tabToUngroup = allTabs.find((tab) => tab.groupId === groupId)
-    if (tabToUngroup) {
-      try {
-        await ch.tabsUngroup(tabToUngroup.id)
       } catch (error) {
         console.error(error)
       }
@@ -318,19 +293,6 @@ function findAllHostnamesInTabs (allTabs, criteria) {
   return [...new Set(allTabs.map((tab) => parseUrl(tab.pendingUrl || tab.url || '')[criteria]).filter(Boolean))]
 }
 
-function getTabGroupCounts (allTabs) {
-  return allTabs.reduce((acc, tab) => {
-    if (tab && tab.groupId !== undefined && tab.groupId !== null && tab.groupId !== chrome.tabGroups.TAB_GROUP_ID_NONE) {
-      acc[tab.groupId] = (acc[tab.groupId] || 0) + 1
-    }
-    return acc
-  }, {})
-}
-
-function getSingleTabGroups (groupCounts) {
-  return Object.entries(groupCounts).filter(([_, count]) => count === 1)
-}
-
 function faviconURL (u) {
   const url = new URL(chrome.runtime.getURL('/_favicon/'))
   url.searchParams.set('pageUrl', u)
@@ -513,11 +475,30 @@ async function onCommandReceived (command) {
   }
 }
 
-async function groupExists(groupId) {
+async function groupExists (groupId) {
   try {
-    const group = await ch.tabGroupsGet(groupId);
-    return group !== undefined && group !== null;
+    const group = await ch.tabGroupsGet(groupId)
+    return group !== undefined && group !== null
   } catch (error) {
-    return false;
+    return false
+  }
+}
+
+async function onTabGroupUpdated (tabGroup) {
+  const userPreferences = await preferences.get()
+
+  if (userPreferences.auto_close_groups.value === true) {
+    await checkAndUngroupIfSingle(tabGroup.id)
+  }
+}
+
+async function checkAndUngroupIfSingle (tabGroupId) {
+  try {
+    const groupTabs = await ch.tabsQuery({ groupId: tabGroupId })
+    if (groupTabs.length <= 1) {
+      await ch.tabsUngroup(groupTabs[0].id)
+    }
+  } catch (error) {
+    console.error(error)
   }
 }
