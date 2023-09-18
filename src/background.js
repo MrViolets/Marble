@@ -102,7 +102,7 @@ async function ungroupAllTabs (tabs) {
 }
 
 async function onTabRemoved () {
-  if (!await extensionIsEnabled()) return;
+  if (!await extensionIsEnabled()) return
 
   const userPreferences = await preferences.get()
 
@@ -129,7 +129,7 @@ async function onTabRemoved () {
 }
 
 async function onTabActivated (info) {
-  if (!await extensionIsEnabled()) return;
+  if (!await extensionIsEnabled()) return
 
   const userPreferences = await preferences.get()
 
@@ -139,7 +139,7 @@ async function onTabActivated (info) {
 }
 
 async function addTabToGroup (tabId) {
-  if (!await extensionIsEnabled()) return;
+  if (!await extensionIsEnabled()) return
 
   const targetTab = await ch.tabsGet(tabId).catch((error) => {
     console.error(error)
