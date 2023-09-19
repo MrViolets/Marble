@@ -31,12 +31,12 @@ async function groupAllTabs () {
 
   const windows = {}
 
-  allTabs.forEach((tab) => {
+  for (const tab of allTabs) {
     if (!windows[tab.windowId]) {
       windows[tab.windowId] = []
     }
     windows[tab.windowId].push(tab)
-  })
+  }
 
   const userPreferences = await preferences.get()
 
@@ -87,6 +87,14 @@ async function groupAllTabs () {
       }
     }
   }
+
+  if (userPreferences.sort_alphabetically.value === true) {
+    try {
+      await sortTabGroupsAlphabetically()
+    } catch (error) {
+      console.error(error)
+    }
+  }
 }
 
 async function ungroupAllTabs (tabs) {
@@ -102,7 +110,7 @@ async function ungroupAllTabs (tabs) {
 }
 
 async function onTabRemoved () {
-  if (!await extensionIsEnabled()) return;
+  if (!await extensionIsEnabled()) return
 
   const userPreferences = await preferences.get()
 
@@ -129,7 +137,7 @@ async function onTabRemoved () {
 }
 
 async function onTabActivated (info) {
-  if (!await extensionIsEnabled()) return;
+  if (!await extensionIsEnabled()) return
 
   const userPreferences = await preferences.get()
 
@@ -139,7 +147,7 @@ async function onTabActivated (info) {
 }
 
 async function addTabToGroup (tabId) {
-  if (!await extensionIsEnabled()) return;
+  if (!await extensionIsEnabled()) return
 
   const targetTab = await ch.tabsGet(tabId).catch((error) => {
     console.error(error)
@@ -214,6 +222,14 @@ async function addTabToGroup (tabId) {
       if (await groupExists(newGroupId)) {
         try {
           await ch.tabGroupsUpdate(newGroupId, { title: siteName, color: groupColor })
+        } catch (error) {
+          console.error(error)
+        }
+      }
+
+      if (userPreferences.sort_alphabetically.value === true) {
+        try {
+          await sortTabGroupsAlphabetically()
         } catch (error) {
           console.error(error)
         }
@@ -510,9 +526,12 @@ async function onMessageReceived (message, sender, sendResponse) {
 
       const isEnabledToggled = message.id === 'enabled' && message.value === true
       const isGroupByChanged = message.id === 'group_by' && (await extensionIsEnabled())
+      const isSortChanged = message.id === 'sort_alphabetically' && (await extensionIsEnabled())
 
       if (isEnabledToggled || isGroupByChanged) {
         await groupAllTabs()
+      } else if (isSortChanged) {
+        await sortTabGroupsAlphabetically()
       }
     } else if (message.msg === 'group_now') {
       sendResponse()
@@ -536,5 +555,18 @@ async function groupExists (groupId) {
     return group !== undefined && group !== null
   } catch (error) {
     return false
+  }
+}
+
+async function sortTabGroupsAlphabetically () {
+  try {
+    const allGroups = await ch.tabGroupsQuery({})
+    const sorted = allGroups.sort((a, b) => a.title.localeCompare(b.title))
+
+    for (let i = sorted.length - 1; i >= 0; i--) {
+      await ch.tabGroupsMove(sorted[i].id, { index: 0 })
+    }
+  } catch (error) {
+    console.error(error)
   }
 }
