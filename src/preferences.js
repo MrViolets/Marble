@@ -15,6 +15,11 @@ export const defaults = {
     value: true,
     type: 'checkbox'
   },
+  sort_alphabetically: {
+    title: chrome.i18n.getMessage('MENU_SORT_ALPHABETICALLY'),
+    value: false,
+    type: 'checkbox'
+  },
   auto_collapse_groups: {
     title: chrome.i18n.getMessage('MENU_AUTO_COLLAPSE'),
     value: false,
