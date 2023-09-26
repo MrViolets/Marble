@@ -13,7 +13,7 @@ chrome.runtime.onMessage.addListener(onMessageReceived)
 chrome.commands.onCommand.addListener(onCommandReceived)
 
 async function onInstalled (info) {
-  if (info && 'reason' in info && info.reason === 'update') {
+  if (info && 'reason' in info && info.reason === 'install') {
     await groupAllTabs()
     await showOnboarding()
   }
