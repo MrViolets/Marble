@@ -14,6 +14,7 @@ export const tabsGroup = promisifyChromeMethod(chrome.tabs.group.bind(chrome.tab
 export const tabsGet = promisifyChromeMethod(chrome.tabs.get.bind(chrome.tabs))
 export const tabsQuery = promisifyChromeMethod(chrome.tabs.query.bind(chrome.tabs))
 export const sendMessage = promisifyChromeMethod(chrome.runtime.sendMessage.bind(chrome.runtime))
+export const getPlatformInfo = promisifyChromeMethod(chrome.runtime.getPlatformInfo.bind(chrome.runtime))
 
 function promisifyChromeMethod (method) {
   return (...args) =>

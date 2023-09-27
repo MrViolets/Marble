@@ -34,5 +34,26 @@
   },
   "MENU_DONATE": {
     "message": "Buy Me a Coffee"
+  },
+  "ACCELERATOR_GROUP_ALL": {
+    "message": "Ctrl+Shift+L"
+  },
+  "ACCELERATOR_GROUP_ALL_MAC": {
+    "message": "\u21E7\u2318L"
+  },
+  "ONBOARDING_TITLE": {
+    "message": "Thanks for installing Marble"
+  },
+  "ONBOARDING_STEP_1": {
+    "message": "Marble will automatically organize your tabs into groups according to their domain."
+  },
+  "ONBOARDING_STEP_2": {
+    "message": "Click the icon in the extension tray to refine the grouping rules or to turn off automatic grouping. Manually group your tabs anytime using the <span class='shortcut' data-accelerator='GROUP_ALL'></span> shortcut."
+  },
+  "ONBOARDING_STEP_3": {
+    "message": "Enjoy your organized workspace!"
+  },
+  "ONBOARDING_DONATE": {
+    "message": "Gifts are entirely optional but they do help me to continue creating free extensions. Thanks for your generosity!"
   }
 }
