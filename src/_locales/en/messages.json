@@ -30,10 +30,10 @@
     "message": "Sort Groups Alphabetically"
   },
   "MENU_RATE": {
-    "message": "Rate Marble"
+    "message": "Give Feedback"
   },
   "MENU_DONATE": {
-    "message": "Buy Me a Coffee"
+    "message": "Support Marble"
   },
   "ACCELERATOR_GROUP_ALL": {
     "message": "Ctrl+Shift+L"
