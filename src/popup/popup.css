@@ -83,8 +83,7 @@ body {
   pointer-events: none;
 }
 
-.label,
-.label-large {
+.label {
   color: var(--primary);
 }
 
