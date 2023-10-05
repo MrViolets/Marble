@@ -29,11 +29,6 @@
   user-select: none;
 }
 
-.no-transition,
-.no-transition:before {
-  transition: none !important;
-}
-
 body {
   width: auto;
   overflow: auto;
