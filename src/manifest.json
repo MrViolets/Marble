@@ -27,7 +27,7 @@
         "default": "Ctrl+Shift+L",
         "mac": "Command+Shift+L"
       },
-      "description": "Groups all tabs in all windows by domain"
+      "description": "Groups all tabs now"
     }
   }
 }

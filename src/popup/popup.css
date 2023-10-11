@@ -116,6 +116,10 @@ body {
   left: 0;
 }
 
+.accelerator {
+  color: var(--secondary);
+}
+
 .switch input {
   opacity: 0;
   width: 0;
