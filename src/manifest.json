@@ -1,7 +1,7 @@
 {
   "name": "__MSG_EXT_NAME__",
   "description": "__MSG_EXT_DESCRIPTION__",
-  "version": "1.1.5",
+  "version": "1.1.6",
   "manifest_version": 3,
    "minimum_chrome_version": "89",
   "default_locale": "en",
@@ -27,7 +27,7 @@
         "default": "Ctrl+Shift+L",
         "mac": "Command+Shift+L"
       },
-      "description": "Groups all tabs in all windows by domain"
+      "description": "Groups all tabs now"
     }
   }
 }
