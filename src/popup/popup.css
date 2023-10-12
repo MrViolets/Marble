@@ -162,6 +162,6 @@ input[type="radio"]:checked + .radio-check {
 }
 
 .unselectable .label {
-  font-weight: 700;
-  color: var(--primary);
+  font-weight: 400;
+  color: var(--secondary);
 }
