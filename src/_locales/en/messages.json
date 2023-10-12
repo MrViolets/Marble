@@ -26,6 +26,12 @@
   "MENU_GROUP_BY": {
     "message": "Group By"
   },
+  "MENU_GROUP_BY_SUBDOMAIN": {
+    "message": "Subdomain"
+  },
+  "MENU_GROUP_BY_DOMAIN": {
+    "message": "Domain"
+  },
   "MENU_SORT_ALPHABETICALLY": {
     "message": "Sort Groups Alphabetically"
   },
