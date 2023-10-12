@@ -22,28 +22,6 @@ async function insertStrings () {
     }
   }
 
-  const selectInputs = document.querySelectorAll('select')
-
-  for (const s of selectInputs) {
-    const options = getOptionsForKey(s.id, preferences.defaults)
-
-    if (!options) {
-      continue
-    }
-
-    // Remove any existing options
-    s.innerHTML = ''
-
-    // Add new options from the optionsArray
-    for (const optionValue of options) {
-      const capitalizedOption = optionValue.charAt(0).toUpperCase() + optionValue.slice(1)
-      const optionElement = document.createElement('option')
-      optionElement.value = optionValue
-      optionElement.innerText = capitalizedOption
-      s.appendChild(optionElement)
-    }
-  }
-
   const accelerators = document.querySelectorAll('[data-accelerator]')
 
   const platformInfo = await ch.getPlatformInfo().catch((error) => {
@@ -65,23 +43,20 @@ async function insertStrings () {
   }
 }
 
-function getOptionsForKey (key, defaultsObject) {
-  if (defaultsObject[key] && defaultsObject[key].options) {
-    return defaultsObject[key].options
-  }
-  return null
-}
-
 async function restorePreferences () {
   const userPreferences = await preferences.get()
 
   for (const [preferenceName, preferenceObj] of Object.entries(userPreferences)) {
-    const el = document.getElementById(preferenceName)
-
     if (preferenceObj.type === 'radio') {
-      el.value = preferenceObj.value
+      const radioToCheck = document.querySelector(`input[name="${preferenceName}"][value="${preferenceObj.value}"]`)
+      if (radioToCheck) {
+        radioToCheck.checked = true
+      }
     } else if (preferenceObj.type === 'checkbox') {
-      el.checked = preferenceObj.value
+      const el = document.getElementById(preferenceName)
+      if (el) {
+        el.checked = preferenceObj.value
+      }
     }
   }
 }
@@ -105,21 +80,21 @@ function registerListeners () {
 
   on(document, 'keydown', onDocumentKeydown)
   onAll('input[type="checkbox"]', 'change', onCheckBoxChanged)
-  onAll('select', 'change', onSelectChanged)
+  onAll('input[type="radio"]', 'change', onRadioChanged)
   onAll('div.nav-index', 'click', onActionClicked)
 }
 
 async function onCheckBoxChanged (e) {
-  await updateUserPreference(e, 'checked', !e.target.checked)
+  await updateUserPreference(e, e.target.id, 'checked', !e.target.checked)
 }
 
-async function onSelectChanged (e) {
-  await updateUserPreference(e, 'value', e.target.value)
+async function onRadioChanged (e) {
+  await updateUserPreference(e, e.target.name, 'value', e.target.value)
 }
 
-async function updateUserPreference (e, valueKey, backupValue) {
+async function updateUserPreference (e, target, valueKey, backupValue) {
   const userPreferences = await preferences.get()
-  const preference = userPreferences[e.target.id]
+  const preference = userPreferences[target]
 
   if (!preference) return
 
@@ -134,7 +109,7 @@ async function updateUserPreference (e, valueKey, backupValue) {
   }
 
   try {
-    await ch.sendMessage({ msg: 'preference_updated', id: e.target.id, value: preference.value })
+    await ch.sendMessage({ msg: 'preference_updated', id: target, value: preference.value })
   } catch (error) {
     console.error(error)
   }

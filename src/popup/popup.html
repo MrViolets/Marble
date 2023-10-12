@@ -28,16 +28,29 @@
       </div>
     </div>
     <div class="group">
-      <div class="item">
+      <div class="item unselectable">
         <div class="left-detail">
           <div class="label" data-localize="MENU_GROUP_BY"></div>
         </div>
-        <div class="right-detail">
-          <div class="select">
-            <select id="group_by"></select>
-          </div>
-        </div>
       </div>
+      <label for="subdomain" class="item nav-index">
+        <div class="left-detail">
+          <label class="radio-button">
+            <input type="radio" id="subdomain" name="group_by" value="subdomain" />
+            <span class="radio-check"></span>
+          </label>
+          <div class="label" data-localize="MENU_GROUP_BY_SUBDOMAIN"></div>
+        </div>
+      </label>
+      <label for="domain" class="item nav-index">
+        <div class="left-detail">
+          <label class="radio-button">
+            <input type="radio" id="domain" name="group_by" value="domain" />
+            <span class="radio-check"></span>
+          </label>
+          <div class="label" data-localize="MENU_GROUP_BY_DOMAIN"></div>
+        </div>
+      </label>
     </div>
     <div class="group">
       <label for="sort_alphabetically" class="item nav-index">
