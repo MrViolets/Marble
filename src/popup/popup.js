@@ -43,26 +43,19 @@ async function insertStrings () {
   }
 }
 
-function getOptionsForKey (key, defaultsObject) {
-  if (defaultsObject[key] && defaultsObject[key].options) {
-    return defaultsObject[key].options
-  }
-  return null
-}
-
-async function restorePreferences() {
-  const userPreferences = await preferences.get();
+async function restorePreferences () {
+  const userPreferences = await preferences.get()
 
   for (const [preferenceName, preferenceObj] of Object.entries(userPreferences)) {
     if (preferenceObj.type === 'radio') {
-      const radioToCheck = document.querySelector(`input[name="${preferenceName}"][value="${preferenceObj.value}"]`);
+      const radioToCheck = document.querySelector(`input[name="${preferenceName}"][value="${preferenceObj.value}"]`)
       if (radioToCheck) {
-        radioToCheck.checked = true;
+        radioToCheck.checked = true
       }
     } else if (preferenceObj.type === 'checkbox') {
-      const el = document.getElementById(preferenceName);
+      const el = document.getElementById(preferenceName)
       if (el) {
-        el.checked = preferenceObj.value;
+        el.checked = preferenceObj.value
       }
     }
   }
