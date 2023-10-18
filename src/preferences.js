@@ -25,6 +25,11 @@ export const defaults = {
     value: false,
     type: 'checkbox'
   },
+  ignore_pinned: {
+    title: chrome.i18n.getMessage('MENU_IGNORE_PINNED'),
+    value: true,
+    type: 'checkbox'
+  },
   group_by: {
     title: chrome.i18n.getMessage('MENU_GROUP_BY'),
     value: 'subdomain',
