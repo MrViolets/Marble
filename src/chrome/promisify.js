@@ -10,11 +10,14 @@ export const tabGroupsMove = promisifyChromeMethod(chrome.tabGroups.move.bind(ch
 export const tabGroupsQuery = promisifyChromeMethod(chrome.tabGroups.query.bind(chrome.tabGroups))
 export const tabsCreate = promisifyChromeMethod(chrome.tabs.create.bind(chrome.tabs))
 export const tabsUngroup = promisifyChromeMethod(chrome.tabs.ungroup.bind(chrome.tabs))
+export const tabsMove = promisifyChromeMethod(chrome.tabs.move.bind(chrome.tabs))
 export const tabsGroup = promisifyChromeMethod(chrome.tabs.group.bind(chrome.tabs))
 export const tabsGet = promisifyChromeMethod(chrome.tabs.get.bind(chrome.tabs))
 export const tabsQuery = promisifyChromeMethod(chrome.tabs.query.bind(chrome.tabs))
+export const tabsUpdate = promisifyChromeMethod(chrome.tabs.update.bind(chrome.tabs))
 export const sendMessage = promisifyChromeMethod(chrome.runtime.sendMessage.bind(chrome.runtime))
 export const getPlatformInfo = promisifyChromeMethod(chrome.runtime.getPlatformInfo.bind(chrome.runtime))
+export const windowsGetCurrent = promisifyChromeMethod(chrome.windows.getCurrent.bind(chrome.windows))
 
 function promisifyChromeMethod (method) {
   return (...args) =>

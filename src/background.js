@@ -39,19 +39,22 @@ async function onTabUpdated (tabId, changes, tab) {
 
 async function groupAllTabs () {
   const allTabs = await getAllValidTabs(false)
+  const userPreferences = await preferences.get()
 
   if (!allTabs) return
 
   const windows = {}
 
   for (const tab of allTabs) {
+    if (userPreferences.ignore_pinned.value === true && tab.pinned) {
+      continue
+    }
+
     if (!windows[tab.windowId]) {
       windows[tab.windowId] = []
     }
     windows[tab.windowId].push(tab)
   }
-
-  const userPreferences = await preferences.get()
 
   let groupCriteria
 
@@ -71,6 +74,12 @@ async function groupAllTabs () {
       const tabsWithThisHostname = allTabsWithSameHostname(windowTabs, hostname, groupCriteria)
 
       if (!tabsWithThisHostname || tabsWithThisHostname.length === 1) continue
+
+      for (const tab of tabsWithThisHostname) {
+        if (tab.pinned) {
+          await ch.tabsUpdate(tab.id, { pinned: false })
+        }
+      }
 
       const tabsToGroup = tabsWithThisHostname.map((tab) => tab.id)
 
@@ -167,7 +176,15 @@ async function addTabToGroup (tabId) {
     return null
   })
 
+  const userPreferences = await preferences.get()
+
   if (!targetTab) return
+
+  if (userPreferences.ignore_pinned.value === true && targetTab.pinned) {
+    return
+  } else if (targetTab.pinned) {
+    await ch.tabsUpdate(targetTab.id, { pinned: false })
+  }
 
   const targetTabUrl = targetTab.pendingUrl || targetTab.url || null
 
@@ -177,8 +194,6 @@ async function addTabToGroup (tabId) {
   const allTabs = await getAllValidTabs()
 
   if (!allTabs) return
-
-  const userPreferences = await preferences.get()
 
   let groupCriteria
 
@@ -539,9 +554,10 @@ async function onMessageReceived (message, sender, sendResponse) {
 
       const isEnabledToggled = message.id === 'enabled' && message.value === true
       const isGroupByChanged = message.id === 'group_by' && (await extensionIsEnabled())
-      const isSortChanged = message.id === 'sort_alphabetically' && (await extensionIsEnabled())
+      const isSortChanged = message.id === 'sort_alphabetically' && (await extensionIsEnabled()) && message.value === true
+      const isPinnedChanged = message.id === 'ignore_pinned' && (await extensionIsEnabled())
 
-      if (isEnabledToggled || isGroupByChanged) {
+      if (isEnabledToggled || isGroupByChanged || isPinnedChanged) {
         await groupAllTabs()
       } else if (isSortChanged) {
         await sortTabGroupsAlphabetically()
@@ -574,12 +590,30 @@ async function groupExists (groupId) {
 async function sortTabGroupsAlphabetically () {
   try {
     const allGroups = await ch.tabGroupsQuery({})
+    const currentWindow = await ch.windowsGetCurrent()
+
+    const groupSizeMap = {}
+    for (const group of allGroups) {
+      const tabsInGroup = await ch.tabsQuery({ groupId: group.id })
+      groupSizeMap[group.id] = tabsInGroup.length
+    }
+
     const sorted = allGroups.sort((a, b) => a.title.localeCompare(b.title))
 
-    for (let i = sorted.length - 1; i >= 0; i--) {
-      await ch.tabGroupsMove(sorted[i].id, { index: 0 })
+    const pinnedCount = await getPinnedTabsCount(currentWindow.id)
+    let currentIndex = pinnedCount
+
+    for (const group of sorted) {
+      await ch.tabGroupsMove(group.id, { index: currentIndex })
+      // Increase the currentIndex by the number of tabs in the current group
+      currentIndex += groupSizeMap[group.id]
     }
   } catch (error) {
     console.error(error)
   }
+}
+
+async function getPinnedTabsCount (windowId) {
+  const pinnedTabs = await ch.tabsQuery({ windowId, pinned: true })
+  return pinnedTabs.length
 }
