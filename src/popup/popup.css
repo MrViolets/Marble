@@ -5,6 +5,7 @@
   --primary: #1F1F1F;
   --secondary: #474747;
   --tertiary: #EDEDED;
+  --select: #999999;
   --separator: #EBEBEB;
   --background: #ffffff;
 }
@@ -16,6 +17,7 @@
     --primary: #E3E3E3;
     --secondary: #C6C6C6;
     --tertiary: #383838;
+    --select: #999999;
     --separator: #474747;
     --background: #1F1F1F;
   }
@@ -96,6 +98,13 @@ body {
   margin-right: 16px;
 }
 
+.inline-label {
+  font-size: 13px;
+  color: var(--primary);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
 .item-icon + .label {
   margin-left: 12px;
 }
@@ -161,8 +170,41 @@ input[type="radio"]:checked + .radio-check {
   background: var(--primary);
 }
 
-.unselectable .label {
-  font-size: 13px;
+.select {
+  position: relative;
+}
+
+select {
+  appearance: none;
+  border: none;
+  background: transparent;
+  padding: 0 4px;
+  height: 28px;
+  outline: none;
+  color: var(--select);
+  text-align: right;
+  padding-right: 20px;
   font-weight: 500;
+}
+
+.select:hover select {
   color: var(--secondary);
+}
+
+.select:hover:after {
+  background: var(--secondary);
+}
+
+.select:after {
+  content: "";
+  position: absolute;
+  height: 20px;
+  width: 20px;
+  top: 50%;
+  right: 2px;
+  -webkit-mask-image: url(unfold.svg);
+  mask-image: url(unfold.svg);
+  background: var(--select);
+  transform: translateY(-50%);
+  pointer-events: none;
 }
