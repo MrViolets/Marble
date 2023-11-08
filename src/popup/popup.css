@@ -1,7 +1,7 @@
 :root {
   color-scheme: light;
   --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", Arial, sans-serif;
-  --accent: #0F6FFF;
+  --accent: #0047FF;
   --primary: #1F1F1F;
   --secondary: #474747;
   --tertiary: #EDEDED;
@@ -13,7 +13,7 @@
 @media (prefers-color-scheme: dark) {
   :root {
     color-scheme: dark;
-    --accent: #B1C5FF;
+    --accent: #749BFF;
     --primary: #E3E3E3;
     --secondary: #C6C6C6;
     --tertiary: #383838;
@@ -182,7 +182,7 @@ select {
   height: 28px;
   outline: none;
   color: var(--select);
-  text-align: right;
+  text-align: left;
   padding-right: 20px;
   font-weight: 500;
 }
