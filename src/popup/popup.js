@@ -11,6 +11,15 @@ async function init () {
   await insertStrings()
   await restorePreferences()
   registerListeners()
+  resizeAllSelectElements()
+}
+
+function resizeAllSelectElements() {
+  const selectInputs = document.querySelectorAll('select')
+
+  for (const s of selectInputs) {
+    resizeSelectElement(s)
+  }
 }
 
 async function insertStrings () {
@@ -41,22 +50,48 @@ async function insertStrings () {
       }
     }
   }
+
+  const selectInputs = document.querySelectorAll('select')
+
+  for (const s of selectInputs) {
+    const options = getOptionsForKey(s.id, preferences.defaults)
+
+    if (!options) {
+      continue
+    }
+
+    s.innerHTML = ''
+
+    for (const optionValue of options) {
+      const capitalizedOption =
+        optionValue.charAt(0).toUpperCase() + optionValue.slice(1)
+      const optionElement = document.createElement('option')
+      optionElement.value = optionValue
+      optionElement.innerText = capitalizedOption
+      s.appendChild(optionElement)
+    }
+  }
+}
+
+function getOptionsForKey (key, defaultsObject) {
+  if (defaultsObject[key] && defaultsObject[key].options) {
+    return defaultsObject[key].options
+  }
+  return null
 }
 
 async function restorePreferences () {
   const userPreferences = await preferences.get()
 
-  for (const [preferenceName, preferenceObj] of Object.entries(userPreferences)) {
+  for (const [preferenceName, preferenceObj] of Object.entries(
+    userPreferences
+  )) {
+    const el = document.getElementById(preferenceName)
+
     if (preferenceObj.type === 'radio') {
-      const radioToCheck = document.querySelector(`input[name="${preferenceName}"][value="${preferenceObj.value}"]`)
-      if (radioToCheck) {
-        radioToCheck.checked = true
-      }
+      el.value = preferenceObj.value
     } else if (preferenceObj.type === 'checkbox') {
-      const el = document.getElementById(preferenceName)
-      if (el) {
-        el.checked = preferenceObj.value
-      }
+      el.checked = preferenceObj.value
     }
   }
 }
@@ -80,21 +115,23 @@ function registerListeners () {
 
   on(document, 'keydown', onDocumentKeydown)
   onAll('input[type="checkbox"]', 'change', onCheckBoxChanged)
-  onAll('input[type="radio"]', 'change', onRadioChanged)
+  onAll('select', 'change', onSelectChanged)
   onAll('div.nav-index', 'click', onActionClicked)
 }
 
 async function onCheckBoxChanged (e) {
-  await updateUserPreference(e, e.target.id, 'checked', !e.target.checked)
+  await updateUserPreference(e, 'checked', !e.target.checked)
 }
 
-async function onRadioChanged (e) {
-  await updateUserPreference(e, e.target.name, 'value', e.target.value)
+async function onSelectChanged (e) {
+  await updateUserPreference(e, 'value', e.target.value)
+
+  resizeSelectElement(e.target)
 }
 
-async function updateUserPreference (e, target, valueKey, backupValue) {
+async function updateUserPreference (e, valueKey, backupValue) {
   const userPreferences = await preferences.get()
-  const preference = userPreferences[target]
+  const preference = userPreferences[e.target.id]
 
   if (!preference) return
 
@@ -109,10 +146,40 @@ async function updateUserPreference (e, target, valueKey, backupValue) {
   }
 
   try {
-    await ch.sendMessage({ msg: 'preference_updated', id: target, value: preference.value })
+    await ch.sendMessage({ msg: 'preference_updated', id: e.target.id, value: preference.value })
   } catch (error) {
     console.error(error)
   }
+}
+
+function resizeSelectElement(selectElement) {
+  const tempSelect = document.createElement('select');
+  const tempOption = document.createElement('option');
+
+  const selectStyles = window.getComputedStyle(selectElement);
+  for (const property of selectStyles) {
+    if (selectStyles.getPropertyValue(property)) {
+      tempSelect.style[property] = selectStyles.getPropertyValue(property);
+    }
+  }
+
+  tempSelect.style.position = 'absolute';
+  tempSelect.style.height = 'auto';
+  tempSelect.style.width = 'auto';
+  tempSelect.style.top = '-9999px';
+
+  tempOption.textContent = selectElement.options[selectElement.selectedIndex].text;
+
+  tempSelect.appendChild(tempOption);
+  document.body.appendChild(tempSelect);
+
+  const tempSelectWidth = tempSelect.getBoundingClientRect().width;
+  
+  console.log(tempSelectWidth)
+
+  selectElement.style.width = `${tempSelectWidth}px`;
+
+  tempSelect.remove();
 }
 
 async function onActionClicked (e) {
