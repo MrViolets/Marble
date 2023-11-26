@@ -1,5 +1,7 @@
 # Marble
 
+![Screenshot](./docs/assets/screenshot.jpg?raw=true)
+
 Like marbles, tabs are unique on their own but are better in collections. This Google Chrome extension will automatically group your tabs by domain.
 
 ## Install

@@ -175,6 +175,7 @@ input[type="radio"]:checked + .radio-check {
 }
 
 select {
+  font-family: var(--font-sans);
   appearance: none;
   border: none;
   background: transparent;
