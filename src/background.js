@@ -40,13 +40,14 @@ async function onTabUpdated (tabId, changes, tab) {
 async function groupAllTabs () {
   const allTabs = await getAllValidTabs(false)
   const userPreferences = await preferences.get()
+  const ignorePinned = userPreferences.ignore_pinned.value;
 
   if (!allTabs) return
 
   const windows = {}
 
   for (const tab of allTabs) {
-    if (userPreferences.ignore_pinned.value === true && tab.pinned) {
+    if (ignorePinned && tab.pinned) {
       continue
     }
 
@@ -71,7 +72,7 @@ async function groupAllTabs () {
     const hostnames = findAllHostnamesInTabs(windowTabs, groupCriteria)
 
     for (const hostname of hostnames) {
-      const tabsWithThisHostname = allTabsWithSameHostname(windowTabs, hostname, groupCriteria)
+      const tabsWithThisHostname = allTabsWithSameHostname(windowTabs, hostname, groupCriteria, ignorePinned)
 
       if (!tabsWithThisHostname || tabsWithThisHostname.length === 1) continue
 
@@ -177,10 +178,11 @@ async function addTabToGroup (tabId) {
   })
 
   const userPreferences = await preferences.get()
+  const ignorePinned = userPreferences.ignore_pinned.value;
 
   if (!targetTab) return
 
-  if (userPreferences.ignore_pinned.value === true && targetTab.pinned) {
+  if (ignorePinned && targetTab.pinned) {
     return
   } else if (targetTab.pinned) {
     await ch.tabsUpdate(targetTab.id, { pinned: false })
@@ -231,7 +233,7 @@ async function addTabToGroup (tabId) {
       console.error(error)
     }
   } else {
-    const matchingTabs = allTabsWithSameHostname(allTabs, parsedUrl[groupCriteria], groupCriteria)
+    const matchingTabs = allTabsWithSameHostname(allTabs, parsedUrl[groupCriteria], groupCriteria, ignorePinned);
 
     if (matchingTabs.length > 1) {
       const matchingTabsIds = matchingTabs.map((t) => t.id)
@@ -326,8 +328,10 @@ async function extensionIsEnabled () {
   }
 }
 
-function findTabsInGroup (allTabs, targetTab) {
-  return allTabs.filter((t) => t.groupId === targetTab.groupId && t.id !== targetTab.id)
+function findTabsInGroup(allTabs, targetTab, ignorePinned) {
+  return allTabs.filter((t) => {
+    return t.groupId === targetTab.groupId && t.id !== targetTab.id && (!ignorePinned || !t.pinned);
+  });
 }
 
 function allTabsContainsHostname (tabsInGroup, targetTabHostName, criteria) {
@@ -349,12 +353,12 @@ function findTargetGroupId (allTabs, targetTab, targetTabHostName, criteria) {
   return null
 }
 
-function allTabsWithSameHostname (allTabs, targetTabHostName, criteria) {
+function allTabsWithSameHostname(allTabs, targetTabHostName, criteria, ignorePinned) {
   return allTabs.filter((tab) => {
-    const parsedUrl = parseUrl(tab.pendingUrl || tab.url)
-    const tabHostname = parsedUrl[criteria]
-    return tabHostname === targetTabHostName
-  })
+    const parsedUrl = parseUrl(tab.pendingUrl || tab.url);
+    const tabHostname = parsedUrl[criteria];
+    return tabHostname === targetTabHostName && (!ignorePinned || !tab.pinned);
+  });
 }
 
 async function getAllValidTabs (onlyCurrentWindow = true) {
